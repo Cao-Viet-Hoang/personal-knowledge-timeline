@@ -393,6 +393,46 @@ export function getAllTags() {
   return [...tagSet].sort();
 }
 
+/**
+ * Replace alias tags with a canonical tag across all entries.
+ * Each alias is removed from entries that contain it; the canonical tag
+ * is added (deduped) to those entries. Aliases equal to the canonical
+ * (after lowercase/trim) are skipped.
+ * @param {string} canonical
+ * @param {string[]} aliases
+ * @returns {number} count of entries actually modified
+ */
+export function mergeTags(canonical, aliases) {
+  const target = String(canonical || "").toLowerCase().trim();
+  if (!target) return 0;
+  const aliasSet = new Set(
+    (aliases || [])
+      .map((a) => String(a).toLowerCase().trim())
+      .filter((a) => a && a !== target)
+  );
+  if (aliasSet.size === 0) return 0;
+
+  let changed = 0;
+  for (const entry of Object.values(_db.entries)) {
+    const tags = entry.tags || [];
+    let touched = false;
+    const kept = [];
+    for (const t of tags) {
+      if (aliasSet.has(t)) touched = true;
+      else kept.push(t);
+    }
+    if (!touched) continue;
+    if (!kept.includes(target)) kept.push(target);
+    entry.tags = kept;
+    entry.updatedAt = now();
+    persistEntry(entry.id);
+    emit(Events.ENTRY_UPDATED, entry);
+    changed++;
+  }
+  if (changed > 0) emit(Events.ENTRIES_CHANGED);
+  return changed;
+}
+
 // ── RELATED ENTRIES ────────────────────────────────────
 
 /** Link two entries as related (bidirectional). */

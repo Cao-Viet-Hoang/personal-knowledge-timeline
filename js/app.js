@@ -75,7 +75,7 @@ import {
   parseUrl,
   suggestTagMerges,
 } from "./ai/ai-actions.js";
-import { embeddingCoverage, getAllTags, applyEnrichment, loadEmbeddings, clearEmbeddingCache } from "./store/store.js";
+import { embeddingCoverage, getAllTags, mergeTags, applyEnrichment, loadEmbeddings, clearEmbeddingCache } from "./store/store.js";
 import { formatRelative } from "./utils/date.js";
 
 // ── App State ──────────────────────────────────────────
@@ -1153,11 +1153,9 @@ async function runIndexing(reindexAll) {
     showAISettingsError("Configure AI first.");
     return;
   }
-  const progressEl = $("#ai-progress");
   const barEl = $("#ai-progress-fill");
   const textEl = $("#ai-progress-text");
   const statsEl = $("#ai-index-stats");
-  if (progressEl) progressEl.hidden = false;
 
   if (reindexAll && _currentAdapter?.clearEmbeddings) {
     await _currentAdapter.clearEmbeddings();
@@ -1167,16 +1165,24 @@ async function runIndexing(reindexAll) {
 
   try {
     await indexAllMissing((progress) => {
-      const pct = progress.total === 0 ? 100 : ((progress.done + progress.errors) / progress.total) * 100;
+      const processed = progress.done + progress.errors;
+      const pct = progress.total === 0 ? 100 : (processed / progress.total) * 100;
       if (barEl) barEl.style.width = `${Math.min(100, pct)}%`;
+      if (statsEl) statsEl.textContent = `${progress.done} / ${progress.total}`;
       if (textEl) {
-        textEl.textContent = `${progress.done}/${progress.total} indexed${progress.errors ? ` · ${progress.errors} errors` : ""}`;
+        textEl.textContent = processed < progress.total
+          ? `· indexing${progress.errors ? ` (${progress.errors} errors)` : "..."}`
+          : progress.errors ? `· done, ${progress.errors} errors` : "";
       }
     });
     const cov = embeddingCoverage();
     if (statsEl) statsEl.textContent = `${cov.indexed} / ${cov.total}`;
+    if (barEl) {
+      const pct = cov.total > 0 ? (cov.indexed / cov.total) * 100 : 0;
+      barEl.style.width = `${pct}%`;
+    }
   } catch (err) {
-    if (textEl) textEl.textContent = `Failed: ${err.message}`;
+    if (textEl) textEl.textContent = `· failed: ${err.message}`;
   }
 }
 
