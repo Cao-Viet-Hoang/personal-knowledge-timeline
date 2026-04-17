@@ -116,6 +116,39 @@
   flex-shrink: 0;
 }
 
+.entry-form-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.entry-form-footer-status {
+  margin-right: auto;
+  max-width: 62%;
+  font-size: var(--text-xs);
+  color: hsl(var(--muted-foreground));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-form-footer-status:empty {
+  display: none;
+}
+
+.entry-form-footer-status--error {
+  color: hsl(var(--destructive));
+}
+
+#entry-form-modal[data-busy="true"] .modal-body {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+#entry-form-modal[data-busy="true"] [data-close-modal="entry-form-modal"] {
+  display: none;
+}
+
 /* ---- Confirm modal ---- */
 
 .confirm-modal-message {

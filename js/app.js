@@ -62,8 +62,9 @@ import {
   validateAIConfig,
 } from "./components/ai-settings-modal.js";
 import { isAIConfigured, getAIConfig } from "./ai/ai-config.js";
-import { testConnection } from "./ai/ai-client.js";
-import { indexAllMissing, indexEntry, reindexEntry } from "./ai/ai-index.js";
+import { testConnection, embed } from "./ai/ai-client.js";
+import { indexAllMissing, indexEntry } from "./ai/ai-index.js";
+import { floatToBase64, entryEmbeddingText } from "./ai/embeddings.js";
 import { findSimilarToEntry, findPossibleDuplicates } from "./ai/ai-search.js";
 import {
   enrichEntry,
@@ -75,8 +76,9 @@ import {
   parseUrl,
   suggestTagMerges,
 } from "./ai/ai-actions.js";
-import { embeddingCoverage, getAllTags, mergeTags, applyEnrichment, loadEmbeddings, clearEmbeddingCache } from "./store/store.js";
+import { embeddingCoverage, getAllTags, mergeTags, loadEmbeddings, clearEmbeddingCache, setEmbedding } from "./store/store.js";
 import { formatRelative } from "./utils/date.js";
+import { normalizeTags } from "./utils/tags.js";
 
 // ── App State ──────────────────────────────────────────
 
@@ -85,6 +87,7 @@ let activeFilters = {};
 
 const PAGE_SIZE = 50;
 let _timelineDisplayCount = PAGE_SIZE;
+let _isEntrySavePending = false;
 
 // ── DOM References ─────────────────────────────────────
 
@@ -275,7 +278,6 @@ function refreshEntryDetail(entryId) {
 
 function handleNewEntry(quickCaptureData) {
   if (quickCaptureData?.quickCapture) {
-    // Quick capture: create immediately, no form
     const data = { ...quickCaptureData };
     delete data.quickCapture;
 
@@ -284,8 +286,10 @@ function handleNewEntry(quickCaptureData) {
       data.title = data.sourceUrl;
     }
 
-    createEntry(data);
-    render();
+    handleQuickCapture(data).catch((err) => {
+      console.error("[QuickCapture] failed:", err);
+      setQuickCaptureBusy(false);
+    });
     return;
   }
 
@@ -296,6 +300,7 @@ function handleNewEntry(quickCaptureData) {
   updateFormFooter(false);
   openModal("entry-form-modal");
   initFormInteractions();
+  setEntryFormSaveProgress("", { busy: false });
 }
 
 function openEditForm(entryId) {
@@ -310,6 +315,7 @@ function openEditForm(entryId) {
   updateFormFooter(true);
   openModal("entry-form-modal");
   initFormInteractions();
+  setEntryFormSaveProgress("", { busy: false });
 }
 
 function updateFormFooter(isEdit) {
@@ -317,7 +323,209 @@ function updateFormFooter(isEdit) {
   if (footer) footer.innerHTML = getEntryFormFooter(isEdit);
 }
 
-function handleSaveEntry() {
+function setEntryFormSaveProgress(message = "", { busy = false, error = false } = {}) {
+  const modalEl = $("#entry-form-modal");
+  if (modalEl) modalEl.dataset.busy = busy ? "true" : "false";
+
+  const saveBtn = $("#entry-form-save");
+  if (saveBtn) {
+    if (!saveBtn.dataset.idleLabel) saveBtn.dataset.idleLabel = saveBtn.innerHTML;
+    saveBtn.disabled = busy;
+    saveBtn.innerHTML = busy ? "Processing..." : (saveBtn.dataset.idleLabel || saveBtn.innerHTML);
+  }
+
+  // Cancel button lives in the modal footer; the X button lives in the header.
+  // Select them separately so both get disabled while a save is in flight.
+  const footerCancelBtn = document.querySelector('#entry-form-modal .modal-footer [data-close-modal="entry-form-modal"]');
+  if (footerCancelBtn) footerCancelBtn.disabled = busy;
+
+  const headerCloseBtn = document.querySelector('#entry-form-modal .modal-header .modal-close');
+  if (headerCloseBtn) headerCloseBtn.disabled = busy;
+
+  const statusEl = $("#entry-form-save-status");
+  if (statusEl) {
+    statusEl.textContent = message || "";
+    statusEl.classList.toggle("entry-form-footer-status--error", !!error);
+  }
+
+  const formEl = $("#entry-form");
+  if (formEl) formEl.setAttribute("aria-busy", busy ? "true" : "false");
+}
+
+function normalizeText(value) {
+  return String(value || "").trim();
+}
+
+function sameString(a, b) {
+  return normalizeText(a) === normalizeText(b);
+}
+
+function sameTags(a, b) {
+  const left = normalizeTags(a).sort();
+  const right = normalizeTags(b).sort();
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i++) {
+    if (left[i] !== right[i]) return false;
+  }
+  return true;
+}
+
+function hasEnrichInputChanges(prev, next) {
+  if (!prev) return true;
+  return (
+    prev.type !== next.type ||
+    !sameString(prev.title, next.title) ||
+    !sameString(prev.sourceUrl, next.sourceUrl) ||
+    !sameString(prev.excerpt, next.excerpt) ||
+    !sameString(prev.content, next.content) ||
+    !sameString(prev.myNote, next.myNote)
+  );
+}
+
+function hasEmbeddingInputChanges(prev, next) {
+  if (!prev) return true;
+  return (
+    !sameString(prev.title, next.title) ||
+    !sameString(prev.excerpt, next.excerpt) ||
+    !sameString(prev.content, next.content) ||
+    !sameString(prev.myNote, next.myNote) ||
+    !sameString(prev.summary, next.summary) ||
+    !sameTags(prev.tags, next.tags)
+  );
+}
+
+function buildDraftFromFormData(data) {
+  return {
+    type: data.type,
+    title: data.title,
+    sourceUrl: data.sourceUrl,
+    excerpt: data.excerpt,
+    content: data.content,
+    myNote: data.myNote,
+    tags: normalizeTags(data.tags),
+    status: data.status,
+    images: data.images || [],
+    relatedEntryIds: data.relatedEntryIds || [],
+    summary: normalizeText(data.summary),
+    aiActionItems: data.aiActionItems || [],
+  };
+}
+
+function computeAIPlan({ isEdit, original, draft }) {
+  if (!isAIConfigured()) {
+    return { shouldEnrich: false, shouldEmbed: false };
+  }
+
+  const cfg = getAIConfig();
+  const needTags = !draft.tags || draft.tags.length === 0;
+  const needSummary = !draft.summary;
+
+  const shouldEnrich = cfg.autoEnrich &&
+    (needTags || needSummary) &&
+    (isEdit ? hasEnrichInputChanges(original, draft) : true);
+
+  const changedForEmbedding = isEdit ? hasEmbeddingInputChanges(original, draft) : true;
+  const hasEmbeddingText = !!entryEmbeddingText(draft);
+  const shouldEmbed = hasEmbeddingText && (changedForEmbedding || shouldEnrich);
+
+  return { shouldEnrich, shouldEmbed };
+}
+
+async function runAIStepsForDraft(draft, aiPlan, { onStatus } = {}) {
+  const result = {
+    enrichError: null,
+    indexError: null,
+    embeddingBase64: "",
+  };
+
+  if (aiPlan.shouldEnrich) {
+    onStatus?.("Enriching content...");
+    try {
+      const needTags = !draft.tags || draft.tags.length === 0;
+      const needSummary = !draft.summary;
+      const enriched = await enrichEntry(draft);
+      if (needSummary && enriched.summary) {
+        draft.summary = normalizeText(enriched.summary);
+      }
+      if (needTags && Array.isArray(enriched.tags) && enriched.tags.length > 0) {
+        draft.tags = normalizeTags([...(draft.tags || []), ...enriched.tags]);
+      }
+    } catch (err) {
+      result.enrichError = err;
+      return result;
+    }
+  }
+
+  if (aiPlan.shouldEmbed) {
+    onStatus?.("Generating embedding...");
+    try {
+      const text = entryEmbeddingText(draft);
+      if (text) {
+        const [vec] = await embed(text);
+        if (!vec) throw new Error("Empty embedding response.");
+        result.embeddingBase64 = floatToBase64(vec);
+      }
+    } catch (err) {
+      result.indexError = err;
+      return result;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Persist a draft to the store (create or update) and attach the embedding
+ * if one was computed. Assumes the draft already carries any AI enrichment.
+ */
+function persistCommitted({ draft, isEdit, originalId, embeddingBase64 }) {
+  const savedEntry = isEdit ? updateEntry(originalId, draft) : createEntry(draft);
+  if (!savedEntry) return null;
+  if (embeddingBase64) {
+    const cfg = getAIConfig();
+    setEmbedding(savedEntry.id, embeddingBase64, cfg.embeddingModel);
+  }
+  return savedEntry;
+}
+
+/**
+ * Run the AI pipeline (enrich + embedding) on a draft, then return the plan
+ * and result so the caller decides how to render errors and persist.
+ */
+async function runEntryAIPipeline({ draft, isEdit, original, skipAI = false, onStatus }) {
+  const aiPlan = skipAI
+    ? { shouldEnrich: false, shouldEmbed: false }
+    : computeAIPlan({ isEdit, original, draft });
+  const aiResult = await runAIStepsForDraft(draft, aiPlan, { onStatus });
+  return { aiPlan, aiResult };
+}
+
+/**
+ * Toggle the "Save without AI" escape-hatch button inside the entry form
+ * footer. Only visible after the AI pipeline fails for the current draft.
+ */
+function setSaveWithoutAIVisible(visible) {
+  const footerActions = document.querySelector("#entry-form-modal .entry-form-footer-actions");
+  if (!footerActions) return;
+  let btn = footerActions.querySelector("#entry-form-save-without-ai");
+  if (visible) {
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.type = "button";
+      btn.id = "entry-form-save-without-ai";
+      btn.className = "btn btn-outline";
+      btn.textContent = "Save without AI";
+      const saveBtn = footerActions.querySelector("#entry-form-save");
+      footerActions.insertBefore(btn, saveBtn);
+    }
+  } else if (btn) {
+    btn.remove();
+  }
+}
+
+async function handleSaveEntry({ skipAI = false } = {}) {
+  if (_isEntrySavePending) return;
+
   const data = collectFormData();
   if (!data) return;
 
@@ -343,79 +551,116 @@ function handleSaveEntry() {
     }
   }
 
-  let savedEntry;
-  if (data.id) {
-    savedEntry = updateEntry(data.id, {
-      type: data.type,
-      title: data.title,
-      sourceUrl: data.sourceUrl,
-      excerpt: data.excerpt,
-      content: data.content,
-      myNote: data.myNote,
-      tags: data.tags,
-      status: data.status,
-      images: data.images || [],
-      relatedEntryIds: data.relatedEntryIds || [],
-      summary: data.summary || "",
-      aiActionItems: data.aiActionItems || [],
-    });
-  } else {
-    savedEntry = createEntry({
-      type: data.type,
-      title: data.title,
-      sourceUrl: data.sourceUrl,
-      excerpt: data.excerpt,
-      content: data.content,
-      myNote: data.myNote,
-      tags: data.tags,
-      images: data.images || [],
-      relatedEntryIds: data.relatedEntryIds || [],
-      summary: data.summary || "",
-      aiActionItems: data.aiActionItems || [],
-    });
+  const isEdit = !!data.id;
+  const original = isEdit ? getEntry(data.id) : null;
+  if (isEdit && !original) {
+    setEntryFormSaveProgress("Entry no longer exists.", { busy: false, error: true });
+    return;
   }
 
-  closeModal("entry-form-modal");
-  render();
+  const draft = buildDraftFromFormData(data);
+  _isEntrySavePending = true;
+  setEntryFormSaveProgress("Saving entry...", { busy: true });
+  setSaveWithoutAIVisible(false);
 
-  if (savedEntry) backgroundEnrich(savedEntry).catch((err) => console.error("[AI] enrich failed:", err));
+  try {
+    const { aiPlan, aiResult } = await runEntryAIPipeline({
+      draft, isEdit, original, skipAI,
+      onStatus: (message) => setEntryFormSaveProgress(message, { busy: true }),
+    });
+
+    if (aiResult.enrichError) {
+      setEntryFormSaveProgress(
+        `Enrich failed: ${truncateError(aiResult.enrichError)}. Retry Save, or click "Save without AI".`,
+        { busy: false, error: true }
+      );
+      setSaveWithoutAIVisible(true);
+      return;
+    }
+
+    if (aiResult.indexError) {
+      setEntryFormSaveProgress(
+        `Embedding failed: ${truncateError(aiResult.indexError)}. Retry Save, or click "Save without AI".`,
+        { busy: false, error: true }
+      );
+      setSaveWithoutAIVisible(true);
+      return;
+    }
+
+    const savedEntry = persistCommitted({
+      draft,
+      isEdit,
+      originalId: data.id,
+      embeddingBase64: aiPlan.shouldEmbed ? aiResult.embeddingBase64 : "",
+    });
+    if (!savedEntry) {
+      setEntryFormSaveProgress("Failed to save entry.", { busy: false, error: true });
+      return;
+    }
+
+    setEntryFormSaveProgress("", { busy: false });
+    closeModal("entry-form-modal");
+    render();
+  } finally {
+    _isEntrySavePending = false;
+  }
+}
+
+function truncateError(err) {
+  const msg = String(err?.message || err || "unknown error");
+  return msg.length > 80 ? msg.slice(0, 77) + "..." : msg;
 }
 
 /**
- * Auto-enrich an entry in the background:
- *   - Generate tags + summary if missing and autoEnrich is on
- *   - Re-compute the embedding so semantic search stays in sync
- * Silently no-ops when AI is not configured.
+ * Quick-capture flow: run the AI pipeline on the draft first, then persist.
+ * If AI fails, fall back to creating the entry without AI so the user does
+ * not get stuck — quick capture prioritizes speed over perfect enrichment.
  */
-async function backgroundEnrich(entry) {
-  if (!isAIConfigured()) return;
-  const cfg = getAIConfig();
+async function handleQuickCapture(data) {
+  const draft = buildDraftFromFormData({
+    type: data.type || "note",
+    title: data.title || "",
+    sourceUrl: data.sourceUrl || "",
+    excerpt: "",
+    content: data.content || "",
+    myNote: "",
+    tags: [],
+    status: "inbox",
+    images: [],
+    relatedEntryIds: [],
+    summary: "",
+    aiActionItems: [],
+  });
 
-  // Enrichment and embedding are independent — a failure in one must not
-  // prevent the other. Embedding in particular is critical for semantic
-  // search, so we always attempt it even if enrichment throws.
-  if (cfg.autoEnrich) {
-    try {
-      const needTags = !entry.tags || entry.tags.length === 0;
-      const needSummary = !entry.summary;
-      if (needTags || needSummary) {
-        const enriched = await enrichEntry(entry);
-        applyEnrichment(entry.id, {
-          summary: needSummary ? enriched.summary : undefined,
-          tags: needTags ? enriched.tags : undefined,
-        });
-      }
-    } catch (err) {
-      console.error("[AI] enrichEntry failed:", err);
+  setQuickCaptureBusy(true, "Processing...");
+
+  const { aiPlan, aiResult } = await runEntryAIPipeline({
+    draft, isEdit: false, original: null,
+    onStatus: (message) => setQuickCaptureBusy(true, message),
+  });
+
+  if (aiResult.enrichError) console.error("[AI] quick capture enrich failed:", aiResult.enrichError);
+  if (aiResult.indexError) console.error("[AI] quick capture embedding failed:", aiResult.indexError);
+
+  const embeddingBase64 = aiPlan.shouldEmbed && !aiResult.indexError ? aiResult.embeddingBase64 : "";
+  persistCommitted({ draft, isEdit: false, embeddingBase64 });
+  setQuickCaptureBusy(false);
+  render();
+}
+
+function setQuickCaptureBusy(busy, message = "") {
+  const input = document.getElementById("quick-capture-input");
+  const btn = document.getElementById("quick-capture-expand");
+  if (input) {
+    input.disabled = busy;
+    if (busy) {
+      input.dataset.idlePlaceholder = input.dataset.idlePlaceholder || input.placeholder;
+      input.placeholder = message || "Processing...";
+    } else {
+      input.placeholder = input.dataset.idlePlaceholder || "Paste a link or type a note...";
     }
   }
-
-  try {
-    await reindexEntry(entry);
-    render();
-  } catch (err) {
-    console.error("[AI] reindexEntry failed:", err);
-  }
+  if (btn) btn.disabled = busy;
 }
 
 /**
@@ -876,8 +1121,13 @@ function initGlobalDelegation() {
   });
 
   // Save entry form
-  on(document, "click", "#entry-form-save", () => {
-    handleSaveEntry();
+  on(document, "click", "#entry-form-save", async () => {
+    await handleSaveEntry();
+  });
+
+  // Escape hatch after AI failure: create/update the entry skipping AI steps.
+  on(document, "click", "#entry-form-save-without-ai", async () => {
+    await handleSaveEntry({ skipAI: true });
   });
 
   // Remove tag in form

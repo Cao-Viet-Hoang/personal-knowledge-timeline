@@ -56,6 +56,7 @@ js/
     date.js                 ← Date formatting
     image.js                ← Image compression & upload
     markdown.js             ← Minimal safe Markdown → HTML renderer
+    tags.js                 ← normalizeTags (lowercase + trim + dedupe)
 data/
   seed.json                 ← Sample data for dev mode
 ```

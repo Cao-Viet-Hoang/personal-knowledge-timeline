@@ -8,6 +8,11 @@ import { icon } from "../utils/icons.js";
 
 const _modalStack = [];
 
+function isModalBusy(id) {
+  const modal = $(`#${id}`);
+  return modal?.dataset?.busy === "true";
+}
+
 export function openModal(id) {
   const backdrop = $(`#${id}-backdrop`);
   const modal = $(`#${id}`);
@@ -21,10 +26,11 @@ export function openModal(id) {
   _modalStack.push(id);
 }
 
-export function closeModal(id) {
+export function closeModal(id, { force = false } = {}) {
   const backdrop = $(`#${id}-backdrop`);
   const modal = $(`#${id}`);
   if (!backdrop || !modal) return;
+  if (!force && isModalBusy(id)) return;
 
   backdrop.classList.remove("open");
   modal.classList.remove("open");

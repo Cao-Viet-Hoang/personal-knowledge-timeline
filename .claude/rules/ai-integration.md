@@ -76,10 +76,14 @@ Store-side API (`store.js`):
 3. **Never call the endpoint from a component** — go through `ai-actions.js` or `ai-search.js`.
 4. **Guard async races** — views with free-text input (Search, Ask) must use a monotonic token (`searchToken++`) to ignore stale results.
 5. **Hybrid scoring** — default when AI is configured: 60% semantic + 40% keyword. Fall back to pure keyword if semantic or hybrid throws.
-6. **Background enrichment** — after `createEntry` / `updateEntry`, `app.js` calls `backgroundEnrich(entry)`. That function:
-   - If `autoEnrich` is on AND the entry is missing tags or summary → fills them via `enrichEntry`
-   - Always calls `reindexEntry(entry)` so semantic search stays in sync
-   - Silently no-ops when AI is not configured
+6. **Synchronous enrichment on save** — `app.js` runs the AI pipeline **before** the entry is persisted so the store receives tags, summary, and embedding in a single write. The flow is:
+   - `computeAIPlan` decides `shouldEnrich` + `shouldEmbed` (edits skip steps whose inputs did not change).
+   - `runAIStepsForDraft` calls `enrichEntry` (if needed), then `embed` on the enriched draft text.
+   - `persistCommitted` then calls `createEntry` / `updateEntry` and, when embedding succeeded, `setEmbedding`.
+   - Both the form (`handleSaveEntry`) and quick capture (`handleQuickCapture`) use the same `runEntryAIPipeline` + `persistCommitted` helpers.
+   - Form path: on AI failure the entry is **not** saved — the modal shows the error plus a "Save without AI" escape-hatch button that retries with `skipAI: true`.
+   - Quick capture path: on AI failure the entry is still created (without embedding) so the user is not blocked; the error is logged.
+   - All paths silently no-op the AI steps when AI is not configured.
 7. **URL parsing uses `r.jina.ai`** — the only external non-AI dependency. No key required, CORS-enabled.
 
 ## Duplicate Detection

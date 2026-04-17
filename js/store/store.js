@@ -11,6 +11,7 @@
 
 import { emit, Events } from "./event-bus.js";
 import config from "../config.js";
+import { normalizeTags } from "../utils/tags.js";
 
 // ── Internal state ─────────────────────────────────────
 
@@ -688,8 +689,7 @@ export function applyEnrichment(entryId, { summary, tags, aiActionItems } = {}) 
   if (!entry) return null;
   if (typeof summary === "string") entry.summary = summary;
   if (Array.isArray(tags) && tags.length) {
-    const merged = new Set([...(entry.tags || []), ...tags.map((t) => String(t).toLowerCase())]);
-    entry.tags = [...merged];
+    entry.tags = normalizeTags([...(entry.tags || []), ...tags]);
   }
   if (Array.isArray(aiActionItems)) entry.aiActionItems = aiActionItems;
   entry.updatedAt = now();

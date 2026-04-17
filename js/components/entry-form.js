@@ -240,10 +240,13 @@ export function renderEntryForm(entry = null) {
 
 export function getEntryFormFooter(isEdit = false) {
   return `
-    <button type="button" class="btn btn-outline" data-close-modal="entry-form-modal">Cancel</button>
-    <button type="button" class="btn btn-primary" id="entry-form-save">
-      ${isEdit ? "Save Changes" : "Create Entry"}
-    </button>
+    <span class="entry-form-footer-status" id="entry-form-save-status" aria-live="polite"></span>
+    <div class="entry-form-footer-actions">
+      <button type="button" class="btn btn-outline" data-close-modal="entry-form-modal">Cancel</button>
+      <button type="button" class="btn btn-primary" id="entry-form-save">
+        ${isEdit ? "Save Changes" : "Create Entry"}
+      </button>
+    </div>
   `;
 }
 

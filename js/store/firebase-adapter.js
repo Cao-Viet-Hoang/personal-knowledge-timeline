@@ -33,6 +33,15 @@ const LEGACY_DOC = "store";
 let _firestore = null;       // Firestore instance
 let _embeddingsCol = null;   // CollectionReference — embeddings
 
+function logEmbeddingHint(err, action) {
+  if (err?.code === "permission-denied") {
+    console.warn(
+      `[FirebaseAdapter] ${action} on "${EMBEDDINGS_COLLECTION}" was denied by Firestore rules. ` +
+      `Allow read/write for this collection to persist AI vectors.`
+    );
+  }
+}
+
 // ── Credential management ──────────────────────────────
 
 export function getSavedCredentials() {
@@ -342,7 +351,8 @@ const firebaseAdapter = {
       });
       return result;
     } catch (err) {
-      console.error("[FirebaseAdapter] loadEmbeddings failed:", err);
+      console.error(`[FirebaseAdapter] loadEmbeddings failed (${EMBEDDINGS_COLLECTION}):`, err);
+      logEmbeddingHint(err, "loadEmbeddings");
       return {};
     }
   },
@@ -352,7 +362,8 @@ const firebaseAdapter = {
     try {
       await _embeddingsCol.doc(id).set({ vec: base64 });
     } catch (err) {
-      console.error("[FirebaseAdapter] persistEmbedding failed:", err);
+      console.error(`[FirebaseAdapter] persistEmbedding failed (${EMBEDDINGS_COLLECTION}):`, err);
+      logEmbeddingHint(err, "persistEmbedding");
     }
   },
 
@@ -361,7 +372,8 @@ const firebaseAdapter = {
     try {
       await _embeddingsCol.doc(id).delete();
     } catch (err) {
-      console.error("[FirebaseAdapter] deleteEmbedding failed:", err);
+      console.error(`[FirebaseAdapter] deleteEmbedding failed (${EMBEDDINGS_COLLECTION}):`, err);
+      logEmbeddingHint(err, "deleteEmbedding");
     }
   },
 
@@ -373,7 +385,8 @@ const firebaseAdapter = {
       snap.forEach((doc) => batch.delete(doc.ref));
       await batch.commit();
     } catch (err) {
-      console.error("[FirebaseAdapter] clearEmbeddings failed:", err);
+      console.error(`[FirebaseAdapter] clearEmbeddings failed (${EMBEDDINGS_COLLECTION}):`, err);
+      logEmbeddingHint(err, "clearEmbeddings");
     }
   },
 };
