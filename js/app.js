@@ -185,6 +185,10 @@ function render() {
   // Top bar title
   topBarTitle.textContent = VIEW_TITLES[currentView] || "Timeline";
 
+  // Toggle top-bar actions visibility per view to avoid duplication
+  const topBar = $(".top-bar");
+  if (topBar) topBar.setAttribute("data-view", currentView);
+
   // Filter bar
   if (["search", "review", "ask", "digest"].includes(currentView)) {
     filterBarEl.innerHTML = "";

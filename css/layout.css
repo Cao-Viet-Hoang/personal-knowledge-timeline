@@ -184,6 +184,20 @@
   gap: var(--space-2);
 }
 
+/* Hide search shortcut on search view — the view has its own full input */
+.top-bar[data-view="search"] .search-input-wrapper {
+  display: none;
+}
+
+/* Hide "New Entry" button on timeline — quick-capture bar handles it */
+.top-bar[data-view="timeline"] #top-bar-new,
+.top-bar[data-view="inbox"] #top-bar-new,
+.top-bar[data-view="starred"] #top-bar-new,
+.top-bar[data-view="archive"] #top-bar-new,
+.top-bar[data-view^="type-"] #top-bar-new {
+  display: none;
+}
+
 /* ---- Filter bar container ---- */
 
 .filter-bar-container {
