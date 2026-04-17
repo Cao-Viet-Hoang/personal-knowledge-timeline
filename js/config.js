@@ -8,7 +8,7 @@
  * Change the ENV constant below to switch environments.
  */
 
-const ENV = "dev"; // ← Change to "prod" to use Firebase
+const ENV = "prod"; // ← Change to "prod" to use Firebase
 
 const config = {
   env: ENV,

@@ -8,7 +8,9 @@ import { renderEntryCard } from "./entry-card.js";
 import { searchEntries } from "../store/store.js";
 import { on } from "../utils/dom.js";
 
-function renderResults(results, query) {
+const SEARCH_PAGE_SIZE = 50;
+
+function renderResults(results, query, displayCount) {
   if (!query || !query.trim()) {
     return `
       <div class="empty-state">
@@ -29,7 +31,23 @@ function renderResults(results, query) {
     `;
   }
 
-  return results.map((e) => renderEntryCard(e)).join("");
+  const displayed = results.slice(0, displayCount);
+  const hasMore = results.length > displayCount;
+  const remaining = results.length - displayCount;
+
+  let html = displayed.map((e) => renderEntryCard(e)).join("");
+
+  if (hasMore) {
+    html += `
+      <div class="timeline-load-more">
+        <button class="btn btn-outline" id="search-load-more">
+          Show more results (${remaining} remaining)
+        </button>
+      </div>
+    `;
+  }
+
+  return html;
 }
 
 function renderCount(results, query) {
@@ -39,6 +57,8 @@ function renderCount(results, query) {
 
 export function renderSearch(container, { onEntryClick, onStar, onEdit, initialQuery = "" }) {
   const results = initialQuery ? searchEntries(initialQuery) : [];
+  let currentResults = results;
+  let displayCount = SEARCH_PAGE_SIZE;
 
   container.innerHTML = `
     <div class="search-page-header">
@@ -59,7 +79,7 @@ export function renderSearch(container, { onEntryClick, onStar, onEdit, initialQ
       </div>
       <div class="search-results-meta" id="search-meta">${renderCount(results, initialQuery)}</div>
     </div>
-    <div id="search-results">${renderResults(results, initialQuery)}</div>
+    <div id="search-results">${renderResults(results, initialQuery, displayCount)}</div>
   `;
 
   // ── Debounced live search ──
@@ -70,15 +90,23 @@ export function renderSearch(container, { onEntryClick, onStar, onEdit, initialQ
       clearTimeout(timer);
       timer = setTimeout(() => {
         const q = input.value.trim();
-        const newResults = searchEntries(q);
-        container.querySelector("#search-results").innerHTML = renderResults(newResults, q);
-        container.querySelector("#search-meta").innerHTML = renderCount(newResults, q);
+        currentResults = searchEntries(q);
+        displayCount = SEARCH_PAGE_SIZE;
+        container.querySelector("#search-results").innerHTML = renderResults(currentResults, q, displayCount);
+        container.querySelector("#search-meta").innerHTML = renderCount(currentResults, q);
       }, 150);
     });
 
     // Focus the input after render
     requestAnimationFrame(() => input.focus());
   }
+
+  // ── Load more search results ──
+  on(container, "click", "#search-load-more", () => {
+    displayCount += SEARCH_PAGE_SIZE;
+    const q = input?.value?.trim() || initialQuery;
+    container.querySelector("#search-results").innerHTML = renderResults(currentResults, q, displayCount);
+  });
 
   // ── Entry interactions inside search results ──
   on(container, "click", ".ec", (e, el) => {

@@ -34,13 +34,20 @@ export function setAdapter(adapter) {
 
 // ── Persistence helpers (delegate to adapter) ──────────
 
+/** Pending persist promise to prevent concurrent writes. */
+let _persistQueue = Promise.resolve();
+
+/**
+ * Persist _db to the adapter.
+ * Deep-clones before writing to prevent mutation during async ops.
+ * Queues writes sequentially to avoid race conditions with async adapters.
+ */
 function persist() {
   if (!_adapter) return;
-  try {
-    _adapter.persist(_db);
-  } catch (err) {
-    console.error("[Store] Failed to persist:", err);
-  }
+  const snapshot = JSON.parse(JSON.stringify(_db));
+  _persistQueue = _persistQueue
+    .then(() => _adapter.persist(snapshot))
+    .catch((err) => console.error("[Store] Failed to persist:", err));
 }
 
 async function loadFromAdapter() {
@@ -51,6 +58,7 @@ async function loadFromAdapter() {
       _db.entries = data.entries || {};
       _db.reflections = data.reflections || {};
       _db.meta = data.meta || _db.meta;
+      normalizeAllEntries();
       return true;
     }
   } catch (err) {
@@ -67,6 +75,7 @@ async function loadSeed() {
     _db.entries = seed.entries || {};
     _db.reflections = seed.reflections || {};
     _db.meta = seed.meta || _db.meta;
+    normalizeAllEntries();
     persist();
   } catch (err) {
     console.error("[Store] Failed to load seed data:", err);
@@ -78,12 +87,24 @@ async function loadSeed() {
 export async function initStore() {
   const loaded = await loadFromAdapter();
   if (!loaded) {
-    await loadSeed();
+    if (config.isProd) {
+      // Prod: start with empty store — never auto-seed with sample data
+      persist();
+    } else {
+      await loadSeed();
+    }
   }
 }
 
-/** Reset store to seed data (dev helper). */
+/**
+ * Reset store to seed data.
+ * Only allowed in dev mode to prevent accidental prod data loss.
+ */
 export async function resetStore() {
+  if (config.isProd) {
+    console.error("[Store] resetStore is disabled in prod mode");
+    return;
+  }
   if (_adapter?.clear) await _adapter.clear();
   await loadSeed();
   emit(Events.ENTRIES_CHANGED);
@@ -116,6 +137,41 @@ function domainFromUrl(url) {
   }
 }
 
+/**
+ * Normalize an entry to ensure all expected fields exist.
+ * Handles forward-compatibility when new fields are added.
+ */
+function normalizeEntry(entry) {
+  return {
+    id: entry.id,
+    type: entry.type || "note",
+    title: entry.title || "",
+    sourceUrl: entry.sourceUrl || "",
+    sourceDomain: entry.sourceDomain || "",
+    content: entry.content || "",
+    excerpt: entry.excerpt || "",
+    myNote: entry.myNote || "",
+    tags: entry.tags || [],
+    images: entry.images || [],
+    createdAt: entry.createdAt || now(),
+    updatedAt: entry.updatedAt || now(),
+    readAt: entry.readAt ?? null,
+    starred: entry.starred ?? false,
+    status: entry.status || "inbox",
+    relatedEntryIds: entry.relatedEntryIds || [],
+  };
+}
+
+/**
+ * Normalize all entries in _db after loading.
+ * Ensures every entry has all required fields.
+ */
+function normalizeAllEntries() {
+  for (const [id, entry] of Object.entries(_db.entries)) {
+    _db.entries[id] = normalizeEntry(entry);
+  }
+}
+
 // ── ENTRY CRUD ─────────────────────────────────────────
 
 /**
@@ -141,8 +197,8 @@ export function createEntry(data) {
     createdAt: timestamp,
     updatedAt: timestamp,
     readAt: null,
-    starred: false,
-    status: "inbox",
+    starred: data.starred ?? false,
+    status: data.status || "inbox",
     relatedEntryIds: data.relatedEntryIds || [],
   };
 
@@ -186,9 +242,11 @@ export function deleteEntry(id) {
 
   // Clean up related references
   for (const entry of Object.values(_db.entries)) {
-    const idx = entry.relatedEntryIds.indexOf(id);
+    const related = entry.relatedEntryIds || [];
+    const idx = related.indexOf(id);
     if (idx !== -1) {
-      entry.relatedEntryIds.splice(idx, 1);
+      related.splice(idx, 1);
+      entry.relatedEntryIds = related;
     }
   }
 

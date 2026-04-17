@@ -100,6 +100,12 @@ export async function initFirebase(cred) {
 
 // ── Adapter object ─────────────────────────────────────
 
+/** Firestore document size limit in bytes (1 MiB). */
+const FIRESTORE_DOC_LIMIT = 1_048_576;
+
+/** Warn threshold at 80% of limit. */
+const FIRESTORE_WARN_THRESHOLD = FIRESTORE_DOC_LIMIT * 0.8;
+
 const firebaseAdapter = {
   async load() {
     if (!_docRef) return null;
@@ -115,6 +121,19 @@ const firebaseAdapter = {
   async persist(db) {
     if (!_docRef) return;
     try {
+      // Check approximate size to warn before hitting Firestore limit
+      const size = new Blob([JSON.stringify(db)]).size;
+      if (size > FIRESTORE_DOC_LIMIT) {
+        console.error(
+          `[FirebaseAdapter] Data size (${(size / 1024).toFixed(0)} KB) exceeds Firestore 1 MiB limit. Persist aborted.`
+        );
+        return;
+      }
+      if (size > FIRESTORE_WARN_THRESHOLD) {
+        console.warn(
+          `[FirebaseAdapter] Data size (${(size / 1024).toFixed(0)} KB) approaching Firestore 1 MiB limit.`
+        );
+      }
       await _docRef.set(db);
     } catch (err) {
       console.error("[FirebaseAdapter] persist failed:", err);

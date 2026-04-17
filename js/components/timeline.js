@@ -9,7 +9,7 @@ import { getDateGroup } from "../utils/date.js";
 import { renderEntryCard } from "./entry-card.js";
 import { groupByDate } from "../store/store.js";
 
-export function renderTimeline(container, entries, { onEntryClick, onNewEntry, onStar, onEdit }) {
+export function renderTimeline(container, entries, { onEntryClick, onNewEntry, onStar, onEdit, hasMore, totalCount, onLoadMore }) {
   const groups = groupByDate(entries);
 
   const quickCaptureHtml = `
@@ -58,7 +58,17 @@ export function renderTimeline(container, entries, { onEntryClick, onNewEntry, o
     }
   }
 
-  container.innerHTML = quickCaptureHtml + groupsHtml;
+  const loadMoreHtml = hasMore
+    ? `
+      <div class="timeline-load-more">
+        <button class="btn btn-outline" id="timeline-load-more">
+          Load more (${totalCount - entries.length} remaining)
+        </button>
+      </div>
+    `
+    : "";
+
+  container.innerHTML = quickCaptureHtml + groupsHtml + loadMoreHtml;
 
   // ── Quick-capture submit (Enter key) ──
   const qcInput = container.querySelector("#quick-capture-input");
@@ -84,6 +94,9 @@ export function renderTimeline(container, entries, { onEntryClick, onNewEntry, o
   // ── New entry button ──
   on(container, "click", "#quick-capture-expand", () => onNewEntry?.());
   on(container, "click", "#empty-new-entry", () => onNewEntry?.());
+
+  // ── Load more ──
+  on(container, "click", "#timeline-load-more", () => onLoadMore?.());
 
   // ── Entry card click → detail ──
   on(container, "click", ".ec", (e, el) => {

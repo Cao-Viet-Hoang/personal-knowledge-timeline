@@ -61,8 +61,8 @@ export function renderEntryCard(entry) {
   }
 
   // ── Footer tags ──
-  const tagsHtml = entry.tags.length
-    ? entry.tags.map((t) => `<span class="tag" data-tag="${esc(t)}">#${esc(t)}</span>`).join("")
+  const tagsHtml = (entry.tags || []).length
+    ? (entry.tags || []).map((t) => `<span class="tag" data-tag="${esc(t)}">#${esc(t)}</span>`).join("")
     : "";
 
   return `
@@ -76,9 +76,14 @@ export function renderEntryCard(entry) {
             ${domainChip}
             ${timeChip}
           </div>
-          <button class="${starClass}" data-action="star" data-entry-id="${entry.id}" aria-label="${entry.starred ? "Unstar" : "Star"}">
-            ${starIcon}
-          </button>
+          <div class="ec-actions">
+            <button class="btn btn-ghost btn-icon btn-sm" data-action="edit" data-entry-id="${entry.id}" data-tooltip="Edit">
+              ${icon("edit")}
+            </button>
+            <button class="btn btn-ghost btn-icon btn-sm ${starClass}" data-action="star" data-entry-id="${entry.id}" aria-label="${entry.starred ? "Unstar" : "Star"}">
+              ${starIcon}
+            </button>
+          </div>
         </div>
 
         <!-- Body -->
@@ -87,17 +92,7 @@ export function renderEntryCard(entry) {
         ${imagesHtml}
 
         <!-- Footer -->
-        <div class="ec-footer">
-          <div class="ec-tags">${tagsHtml}</div>
-          <div class="ec-actions">
-            <button class="btn btn-ghost btn-icon btn-sm" data-action="edit" data-entry-id="${entry.id}" data-tooltip="Edit">
-              ${icon("edit")}
-            </button>
-            <button class="btn btn-ghost btn-icon btn-sm" data-action="more" data-entry-id="${entry.id}" data-tooltip="More">
-              ${icon("moreVertical")}
-            </button>
-          </div>
-        </div>
+        ${tagsHtml ? `<div class="ec-footer"><div class="ec-tags">${tagsHtml}</div></div>` : ""}
       </div>
     </article>
   `;

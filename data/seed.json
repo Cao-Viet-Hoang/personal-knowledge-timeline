@@ -9,13 +9,20 @@
       "content": "",
       "excerpt": "React Server Components allow rendering components on the server, reducing bundle size and improving performance. They enable direct database access and keep sensitive logic server-side.",
       "myNote": "Key insight: RSCs are not the same as SSR. RSCs never re-render on the client. Good mental model: think of them as async components that run once.",
-      "tags": ["react", "architecture", "performance"],
+      "tags": [
+        "react",
+        "architecture",
+        "performance"
+      ],
       "createdAt": "2026-04-16T08:30:00.000Z",
       "updatedAt": "2026-04-16T08:30:00.000Z",
       "readAt": "2026-04-16T08:35:00.000Z",
       "starred": true,
       "status": "inbox",
-      "relatedEntryIds": ["e_004"]
+      "relatedEntryIds": [
+        "e_004"
+      ],
+      "images": []
     },
     "e_002": {
       "id": "e_002",
@@ -26,13 +33,17 @@
       "content": "After reading about micro-frontends extensively, I think for teams under 20 devs it adds more complexity than it solves. Module federation is cool tech but the operational overhead is real. Better to stick with a well-structured monorepo and lazy loading.",
       "excerpt": "",
       "myNote": "",
-      "tags": ["architecture", "opinion"],
+      "tags": [
+        "architecture",
+        "opinion"
+      ],
       "createdAt": "2026-04-16T05:00:00.000Z",
       "updatedAt": "2026-04-16T05:00:00.000Z",
       "readAt": null,
       "starred": false,
       "status": "inbox",
-      "relatedEntryIds": []
+      "relatedEntryIds": [],
+      "images": []
     },
     "e_003": {
       "id": "e_003",
@@ -43,13 +54,17 @@
       "content": "",
       "excerpt": "Complexity is the single greatest enemy of reliability. The best code is no code at all. Every new line of code you bring into the world is code that has to be debugged, understood, and maintained.",
       "myNote": "This is basically the Unix philosophy applied to modern software. Keep referencing this when I feel the urge to over-engineer.",
-      "tags": ["philosophy", "simplicity"],
+      "tags": [
+        "philosophy",
+        "simplicity"
+      ],
       "createdAt": "2026-04-16T03:00:00.000Z",
       "updatedAt": "2026-04-16T03:00:00.000Z",
       "readAt": "2026-04-16T03:05:00.000Z",
       "starred": true,
       "status": "processed",
-      "relatedEntryIds": []
+      "relatedEntryIds": [],
+      "images": []
     },
     "e_004": {
       "id": "e_004",
@@ -60,13 +75,20 @@
       "content": "",
       "excerpt": "The event loop is what allows Node.js to perform non-blocking I/O operations despite JavaScript being single-threaded. It offloads operations to the system kernel whenever possible.",
       "myNote": "Phases: timers → pending callbacks → idle/prepare → poll → check → close callbacks. The poll phase is where most async I/O callbacks run.",
-      "tags": ["nodejs", "javascript", "fundamentals"],
+      "tags": [
+        "nodejs",
+        "javascript",
+        "fundamentals"
+      ],
       "createdAt": "2026-04-15T10:00:00.000Z",
       "updatedAt": "2026-04-15T10:00:00.000Z",
       "readAt": "2026-04-15T10:30:00.000Z",
       "starred": false,
       "status": "processed",
-      "relatedEntryIds": ["e_001"]
+      "relatedEntryIds": [
+        "e_001"
+      ],
+      "images": []
     },
     "e_005": {
       "id": "e_005",
@@ -77,13 +99,21 @@
       "content": "Steps to configure PgBouncer for our production setup:\n\n1. Install via apt: sudo apt install pgbouncer\n2. Edit /etc/pgbouncer/pgbouncer.ini\n3. Set pool_mode = transaction (not session)\n4. Set max_client_conn = 1000\n5. Set default_pool_size = 25\n6. Restart: sudo systemctl restart pgbouncer\n\nTransaction mode is important because it releases connections back to the pool after each transaction rather than holding them for the session duration.",
       "excerpt": "",
       "myNote": "",
-      "tags": ["postgresql", "devops", "database"],
+      "tags": [
+        "postgresql",
+        "devops",
+        "database"
+      ],
       "createdAt": "2026-04-15T07:00:00.000Z",
       "updatedAt": "2026-04-15T07:00:00.000Z",
       "readAt": null,
       "starred": false,
       "status": "inbox",
-      "relatedEntryIds": ["e_006", "e_010"]
+      "relatedEntryIds": [
+        "e_006",
+        "e_010"
+      ],
+      "images": []
     },
     "e_006": {
       "id": "e_006",
@@ -94,13 +124,20 @@
       "content": "",
       "excerpt": "SQLite at the edge means your data lives next to your compute. No network hop to a database server. Reads are microseconds, not milliseconds. With Litestream for replication, you get durability too.",
       "myNote": "Consider this for the analytics dashboard project. Read latency is our biggest bottleneck.",
-      "tags": ["sqlite", "edge-computing", "database"],
+      "tags": [
+        "sqlite",
+        "edge-computing",
+        "database"
+      ],
       "createdAt": "2026-04-15T04:00:00.000Z",
       "updatedAt": "2026-04-15T04:00:00.000Z",
       "readAt": "2026-04-15T04:10:00.000Z",
       "starred": true,
       "status": "processed",
-      "relatedEntryIds": ["e_005"]
+      "relatedEntryIds": [
+        "e_005"
+      ],
+      "images": []
     },
     "e_007": {
       "id": "e_007",
@@ -111,13 +148,18 @@
       "content": "Every project I start now has strict: true from day one. The time saved debugging runtime type errors vastly outweighs the extra type annotations. strictNullChecks alone catches so many potential bugs.",
       "excerpt": "",
       "myNote": "",
-      "tags": ["typescript", "opinion", "best-practices"],
+      "tags": [
+        "typescript",
+        "opinion",
+        "best-practices"
+      ],
       "createdAt": "2026-04-13T12:00:00.000Z",
       "updatedAt": "2026-04-13T12:00:00.000Z",
       "readAt": null,
       "starred": false,
       "status": "processed",
-      "relatedEntryIds": []
+      "relatedEntryIds": [],
+      "images": []
     },
     "e_008": {
       "id": "e_008",
@@ -128,13 +170,18 @@
       "content": "",
       "excerpt": "I get paid for code that works, not for tests, so my philosophy is to test as little as possible to reach a given level of confidence.",
       "myNote": "This is often misquoted. He is not saying skip tests. He is saying be strategic about what you test. Focus on behavior, not implementation.",
-      "tags": ["testing", "philosophy", "quotes"],
+      "tags": [
+        "testing",
+        "philosophy",
+        "quotes"
+      ],
       "createdAt": "2026-04-13T08:00:00.000Z",
       "updatedAt": "2026-04-13T08:00:00.000Z",
       "readAt": "2026-04-13T08:05:00.000Z",
       "starred": false,
       "status": "archived",
-      "relatedEntryIds": []
+      "relatedEntryIds": [],
+      "images": []
     },
     "e_009": {
       "id": "e_009",
@@ -145,13 +192,18 @@
       "content": "",
       "excerpt": "CSS Grid is the most powerful layout system available in CSS. It is a 2-dimensional system, meaning it can handle both columns and rows.",
       "myNote": "Bookmarking as reference. The fr unit explanation and the grid-template-areas syntax are particularly useful for complex layouts.",
-      "tags": ["css", "frontend", "reference"],
+      "tags": [
+        "css",
+        "frontend",
+        "reference"
+      ],
       "createdAt": "2026-04-11T14:00:00.000Z",
       "updatedAt": "2026-04-11T14:00:00.000Z",
       "readAt": "2026-04-11T14:20:00.000Z",
       "starred": false,
       "status": "processed",
-      "relatedEntryIds": []
+      "relatedEntryIds": [],
+      "images": []
     },
     "e_010": {
       "id": "e_010",
@@ -162,13 +214,20 @@
       "content": "# Multi-stage Dockerfile for Node.js\n\nStage 1 (builder): Install all deps including devDeps, run build\nStage 2 (production): Copy only built artifacts and production deps\n\nThis reduces image size from ~1.2GB to ~180MB in our case.\n\nKey: use node:alpine for the production stage, and make sure to copy package.json + lockfile before npm ci for better layer caching.",
       "excerpt": "",
       "myNote": "",
-      "tags": ["docker", "nodejs", "devops"],
+      "tags": [
+        "docker",
+        "nodejs",
+        "devops"
+      ],
       "createdAt": "2026-04-11T09:00:00.000Z",
       "updatedAt": "2026-04-11T09:00:00.000Z",
       "readAt": null,
       "starred": false,
       "status": "inbox",
-      "relatedEntryIds": ["e_005"]
+      "relatedEntryIds": [
+        "e_005"
+      ],
+      "images": []
     },
     "e_011": {
       "id": "e_011",
@@ -179,13 +238,20 @@
       "content": "",
       "excerpt": "An application is data-intensive if data is its primary challenge — the quantity of data, the complexity of data, or the speed at which it is changing — as opposed to compute-intensive.",
       "myNote": "Must-read book. Key takeaways: think about reliability, scalability, and maintainability as first-class concerns. Chapter on distributed systems consensus was eye-opening.",
-      "tags": ["books", "distributed-systems", "architecture"],
+      "tags": [
+        "books",
+        "distributed-systems",
+        "architecture"
+      ],
       "createdAt": "2026-04-08T10:00:00.000Z",
       "updatedAt": "2026-04-08T10:00:00.000Z",
       "readAt": "2026-04-09T08:00:00.000Z",
       "starred": true,
       "status": "processed",
-      "relatedEntryIds": ["e_007"]
+      "relatedEntryIds": [
+        "e_007"
+      ],
+      "images": []
     },
     "e_012": {
       "id": "e_012",
@@ -196,13 +262,18 @@
       "content": "I keep forgetting things I read and learned weeks ago. The act of writing a note forces me to process the information rather than just passively consume it. Building this knowledge timeline is exactly what I need — a second brain that I can search and review.",
       "excerpt": "",
       "myNote": "",
-      "tags": ["meta", "learning", "productivity"],
+      "tags": [
+        "meta",
+        "learning",
+        "productivity"
+      ],
       "createdAt": "2026-04-08T06:00:00.000Z",
       "updatedAt": "2026-04-08T06:00:00.000Z",
       "readAt": null,
       "starred": false,
       "status": "processed",
-      "relatedEntryIds": []
+      "relatedEntryIds": [],
+      "images": []
     },
     "e_013": {
       "id": "e_013",
@@ -213,13 +284,20 @@
       "content": "",
       "excerpt": "Building a Second Brain is a methodology for saving and systematically reminding us of the ideas, inspirations, insights, and connections we have gained through our experience.",
       "myNote": "The PARA method (Projects, Areas, Resources, Archives) is the core organizational framework. Our timeline app is essentially the 'Resources' bucket with temporal context.",
-      "tags": ["productivity", "learning", "books"],
+      "tags": [
+        "productivity",
+        "learning",
+        "books"
+      ],
       "createdAt": "2026-04-06T15:00:00.000Z",
       "updatedAt": "2026-04-06T15:30:00.000Z",
       "readAt": "2026-04-06T16:00:00.000Z",
       "starred": true,
       "status": "processed",
-      "relatedEntryIds": ["e_012"]
+      "relatedEntryIds": [
+        "e_012"
+      ],
+      "images": []
     }
   },
   "reflections": {

@@ -25,7 +25,7 @@ export function renderEntryDetail(entry) {
     ? `
       <div class="detail-source">
         <a href="${entry.sourceUrl}" target="_blank" rel="noopener" class="detail-source-link">
-          ${escapeHtml(entry.sourceUrl)} ${icon("externalLink")}
+          <span>${escapeHtml(entry.sourceUrl)}</span> ${icon("externalLink")}
         </a>
         ${entry.sourceDomain ? `<span class="detail-source-domain">${escapeHtml(entry.sourceDomain)}</span>` : ""}
       </div>
@@ -59,12 +59,12 @@ export function renderEntryDetail(entry) {
     `
     : "";
 
-  const tagsHtml = entry.tags.length
+  const tagsHtml = (entry.tags || []).length
     ? `
       <div class="detail-section">
         <div class="detail-section-title">Tags</div>
         <div class="detail-tags">
-          ${entry.tags.map((t) => `<span class="tag">#${escapeHtml(t)}</span>`).join("")}
+          ${(entry.tags || []).map((t) => `<span class="tag">#${escapeHtml(t)}</span>`).join("")}
         </div>
       </div>
     `
@@ -77,9 +77,9 @@ export function renderEntryDetail(entry) {
         <div class="detail-section-title">Images (${entry.images.length})</div>
         <div class="detail-images-grid">
           ${entry.images.map((img, i) => `
-            <a class="detail-image-item" href="${img.dataUrl}" target="_blank" rel="noopener" title="Click to open full size">
+            <div class="detail-image-item" data-action="open-lightbox" data-image-index="${i}" data-entry-id="${entry.id}" title="Click to view full size">
               <img src="${img.dataUrl}" alt="Image ${i + 1}" loading="lazy" />
-            </a>
+            </div>
           `).join("")}
         </div>
       </div>

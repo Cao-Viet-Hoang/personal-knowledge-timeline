@@ -6,6 +6,7 @@
 
 import { icon } from "../utils/icons.js";
 import { formatBytes, checkImageLimits } from "../utils/image.js";
+import { getAllEntries } from "../store/store.js";
 
 export function renderEntryForm(entry = null) {
   const type = entry?.type || "link";
@@ -17,6 +18,25 @@ export function renderEntryForm(entry = null) {
   const tags = entry?.tags || [];
   const status = entry?.status || "inbox";
   const images = entry?.images || [];
+  const relatedEntryIds = entry?.relatedEntryIds || [];
+
+  // Build related entries HTML from current data
+  const allEntries = getAllEntries();
+  const relatedEntries = relatedEntryIds
+    .map((id) => allEntries.find((e) => e.id === id))
+    .filter(Boolean);
+
+  const relatedHtml = relatedEntries
+    .map(
+      (re) => `
+    <div class="related-entry-chip" data-related-id="${esc(re.id)}">
+      <span class="type-dot type-dot--${re.type}"></span>
+      <span class="related-entry-chip-title">${esc(re.title)}</span>
+      <button type="button" class="related-entry-chip-remove" data-remove-related="${esc(re.id)}">${icon("close")}</button>
+    </div>
+  `
+    )
+    .join("");
 
   const tagsHtml = tags
     .map(
@@ -62,22 +82,6 @@ export function renderEntryForm(entry = null) {
         <input type="url" id="entry-source" name="sourceUrl" class="input" placeholder="https://..." value="${esc(sourceUrl)}" />
       </div>
 
-      <div class="form-group" id="form-excerpt-group">
-        <label class="label" for="entry-excerpt">Excerpt / Quote</label>
-        <textarea id="entry-excerpt" name="excerpt" class="textarea" rows="3" placeholder="Key excerpt or quote from the source...">${esc(excerpt)}</textarea>
-      </div>
-
-      <div class="form-group" id="form-content-group">
-        <label class="label" for="entry-content">Content</label>
-        <textarea id="entry-content" name="content" class="textarea" rows="5" placeholder="Write your note or thought...">${esc(content)}</textarea>
-      </div>
-
-      <div class="form-group">
-        <label class="label" for="entry-note">My Note</label>
-        <textarea id="entry-note" name="myNote" class="textarea" rows="3" placeholder="Your personal annotation...">${esc(myNote)}</textarea>
-        <span class="form-hint">Your personal thoughts about this entry</span>
-      </div>
-
       <div class="form-group">
         <label class="label">Images</label>
         <div class="image-upload-controls">
@@ -107,6 +111,22 @@ export function renderEntryForm(entry = null) {
         <div class="image-limit-warning" id="image-limit-warning" hidden></div>
       </div>
 
+      <div class="form-group" id="form-excerpt-group">
+        <label class="label" id="form-excerpt-label" for="entry-excerpt">Excerpt / Quote</label>
+        <textarea id="entry-excerpt" name="excerpt" class="textarea" rows="3" placeholder="Key excerpt or quote from the source...">${esc(excerpt)}</textarea>
+      </div>
+
+      <div class="form-group" id="form-content-group">
+        <label class="label" for="entry-content">Content</label>
+        <textarea id="entry-content" name="content" class="textarea" rows="5" placeholder="Write your note or thought...">${esc(content)}</textarea>
+      </div>
+
+      <div class="form-group" id="form-note-group">
+        <label class="label" for="entry-note">My Note</label>
+        <textarea id="entry-note" name="myNote" class="textarea" rows="3" placeholder="Your personal annotation...">${esc(myNote)}</textarea>
+        <span class="form-hint">Your personal thoughts about this entry</span>
+      </div>
+
       <div class="form-group">
         <label class="label">Tags</label>
         <div class="tag-input-wrapper" id="tag-input-wrapper">
@@ -119,6 +139,24 @@ export function renderEntryForm(entry = null) {
           />
         </div>
         <span class="form-hint">Press Enter or comma to add a tag</span>
+      </div>
+
+      <div class="form-group">
+        <label class="label">Related Entries</label>
+        <div class="related-search-wrapper" id="related-search-wrapper">
+          <input
+            type="text"
+            class="input"
+            id="related-search-input"
+            placeholder="Search entries to link..."
+            autocomplete="off"
+          />
+          <div class="related-search-dropdown" id="related-search-dropdown" hidden></div>
+        </div>
+        <div class="related-entries-list" id="related-entries-list">
+          ${relatedHtml}
+        </div>
+        <span class="form-hint">Search by title to link related entries</span>
       </div>
 
       <div class="form-row">
@@ -170,7 +208,13 @@ export function collectFormData() {
   // Collect images from preview grid
   const images = getFormImages();
 
-  return { id, type, title, sourceUrl, excerpt, content, myNote, tags, status, images };
+  // Collect related entry ids
+  const relatedEntryIds = [];
+  form.querySelectorAll("#related-entries-list .related-entry-chip[data-related-id]").forEach((el) => {
+    relatedEntryIds.push(el.dataset.relatedId);
+  });
+
+  return { id, type, title, sourceUrl, excerpt, content, myNote, tags, status, images, relatedEntryIds };
 }
 
 /**

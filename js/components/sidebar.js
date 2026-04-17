@@ -6,6 +6,7 @@
 import { on } from "../utils/dom.js";
 import { icon } from "../utils/icons.js";
 import { getStats } from "../store/store.js";
+import config from "../config.js";
 
 export function renderSidebar(container, { onNavigate, activeView }) {
   const stats = getStats();
@@ -74,6 +75,19 @@ export function renderSidebar(container, { onNavigate, activeView }) {
         </button>
       </div>
     </nav>
+
+    ${config.isProd ? `
+    <div class="sidebar-footer">
+      <div class="sidebar-connection">
+        ${icon("database", 14)}
+        <span class="sidebar-connection-text">Firestore connected</span>
+      </div>
+      <button class="sidebar-item sidebar-item--danger" data-action="firebase-disconnect">
+        <span class="sidebar-item-icon">${icon("logOut")}</span>
+        Disconnect
+      </button>
+    </div>
+    ` : ""}
   `;
 
   on(container, "click", ".sidebar-item[data-view]", (e, el) => {

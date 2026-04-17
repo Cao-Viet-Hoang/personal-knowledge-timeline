@@ -80,6 +80,18 @@
   white-space: nowrap;
 }
 
+/* ---- Load more ---- */
+
+.timeline-load-more {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-6) 0;
+}
+
+.timeline-load-more .btn {
+  min-width: 200px;
+}
+
 /* ---- Entry card ---- */
 
 .ec {
@@ -145,18 +157,12 @@
   height: 30px;
   border-radius: var(--radius-md);
   color: hsl(var(--muted-foreground));
-  opacity: 0;
   transition: all var(--transition-fast);
   flex-shrink: 0;
 }
 
 .ec-star.starred {
-  opacity: 1;
   color: hsl(var(--color-star));
-}
-
-.ec:hover .ec-star {
-  opacity: 1;
 }
 
 .ec-star:hover {
@@ -254,13 +260,7 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  opacity: 0;
-  transition: opacity var(--transition-fast);
   flex-shrink: 0;
-}
-
-.ec:hover .ec-actions {
-  opacity: 1;
 }
 
 /* ---- Filter bar ---- */

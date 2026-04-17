@@ -349,15 +349,6 @@
     font-size: var(--text-xs);
   }
 
-  /* Always show star & actions — no hover on touch */
-  .ec-actions {
-    opacity: 1;
-  }
-
-  .ec-star {
-    opacity: 1;
-  }
-
   /* ── Quick capture compact ── */
 
   .quick-capture {

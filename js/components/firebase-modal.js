@@ -1,65 +1,46 @@
 /**
  * Firebase credentials modal.
  * Shown in "prod" mode when no saved credentials exist.
- * User pastes their Firebase config JSON or fills individual fields.
+ * User pastes their Firebase config JSON to connect.
  */
 
 import { icon } from "../utils/icons.js";
 
+const EXAMPLE_JSON = `{
+  "apiKey": "AIzaSy...",
+  "authDomain": "your-app.firebaseapp.com",
+  "projectId": "your-app",
+  "storageBucket": "your-app.appspot.com",
+  "messagingSenderId": "123456789",
+  "appId": "1:123456789:web:abc..."
+}`;
+
 export function renderFirebaseModal(savedCred = null) {
-  const v = (field) => savedCred?.[field] || "";
+  const prefilled = savedCred ? JSON.stringify(savedCred, null, 2) : "";
 
   return `
     <div id="firebase-modal-backdrop" class="modal-backdrop open"></div>
     <div id="firebase-modal" class="modal modal--lg open" role="dialog" aria-modal="true">
       <div class="modal-header">
-        <h3 class="modal-title">Firebase Configuration</h3>
+        <h3 class="modal-title">${icon("settings", 20)} Firebase Configuration</h3>
       </div>
       <div class="modal-body" id="firebase-modal-body">
         <p class="fb-modal-desc">
-          App is running in <strong>production mode</strong>. Enter your Firebase project credentials to connect to Firestore.
+          Paste your <strong>Firebase Web App config</strong> JSON to connect to Firestore.
+        </p>
+        <p class="fb-modal-hint">
+          Firebase Console → Project Settings → Your apps → Config → Copy
         </p>
 
         <div class="fb-paste-section">
-          <label class="label" for="fb-json-paste">Paste Firebase config JSON</label>
+          <label class="label" for="fb-json-paste">Firebase Config JSON <span class="fb-required">*</span></label>
           <textarea
             id="fb-json-paste"
-            class="textarea"
-            rows="6"
-            placeholder='{"apiKey": "...", "authDomain": "...", "projectId": "...", ...}'
-          ></textarea>
-          <button type="button" class="btn btn-outline btn-sm" id="fb-parse-json" style="margin-top: var(--space-2)">
-            Parse JSON
-          </button>
-        </div>
-
-        <div class="fb-divider"><span>OR fill manually</span></div>
-
-        <div class="fb-fields">
-          <div class="form-group">
-            <label class="label" for="fb-apiKey">API Key <span class="fb-required">*</span></label>
-            <input type="text" id="fb-apiKey" class="input" placeholder="AIzaSy..." value="${esc(v("apiKey"))}" />
-          </div>
-          <div class="form-group">
-            <label class="label" for="fb-authDomain">Auth Domain <span class="fb-required">*</span></label>
-            <input type="text" id="fb-authDomain" class="input" placeholder="your-app.firebaseapp.com" value="${esc(v("authDomain"))}" />
-          </div>
-          <div class="form-group">
-            <label class="label" for="fb-projectId">Project ID <span class="fb-required">*</span></label>
-            <input type="text" id="fb-projectId" class="input" placeholder="your-app" value="${esc(v("projectId"))}" />
-          </div>
-          <div class="form-group">
-            <label class="label" for="fb-storageBucket">Storage Bucket</label>
-            <input type="text" id="fb-storageBucket" class="input" placeholder="your-app.appspot.com" value="${esc(v("storageBucket"))}" />
-          </div>
-          <div class="form-group">
-            <label class="label" for="fb-messagingSenderId">Messaging Sender ID</label>
-            <input type="text" id="fb-messagingSenderId" class="input" placeholder="123456789" value="${esc(v("messagingSenderId"))}" />
-          </div>
-          <div class="form-group">
-            <label class="label" for="fb-appId">App ID</label>
-            <input type="text" id="fb-appId" class="input" placeholder="1:123456789:web:abc..." value="${esc(v("appId"))}" />
-          </div>
+            class="textarea mono"
+            rows="10"
+            spellcheck="false"
+            placeholder='${esc(EXAMPLE_JSON)}'
+          >${esc(prefilled)}</textarea>
         </div>
 
         <div class="fb-error" id="fb-error" hidden></div>
@@ -76,42 +57,48 @@ export function renderFirebaseModal(savedCred = null) {
 }
 
 /**
- * Read credential fields from the modal DOM.
- * @returns {object}
+ * Parse the JSON textarea and return a credential object.
+ * Handles raw JSON, `const firebaseConfig = {...}` syntax, and trailing semicolons.
+ * @returns {{ cred: object|null, error: string|null }}
  */
 export function collectFirebaseCredentials() {
-  const fields = ["apiKey", "authDomain", "projectId", "storageBucket", "messagingSenderId", "appId"];
-  const cred = {};
-  for (const f of fields) {
-    const el = document.getElementById(`fb-${f}`);
-    if (el) cred[f] = el.value.trim();
-  }
-  return cred;
-}
+  const textarea = document.getElementById("fb-json-paste");
+  if (!textarea) return { cred: null, error: "Textarea not found" };
 
-/**
- * Attempt to parse a JSON string and fill the form fields.
- * @param {string} jsonStr
- * @returns {boolean} success
- */
-export function parseAndFillJson(jsonStr) {
+  let raw = textarea.value.trim();
+  if (!raw) return { cred: null, error: "Please paste your Firebase config JSON." };
+
+  // Strip JS variable assignment prefix: const/let/var firebaseConfig =
+  raw = raw.replace(/^(const|let|var)\s+\w+\s*=\s*/, "");
+  // Strip trailing semicolon
+  raw = raw.replace(/;\s*$/, "");
+  // Convert JS object literal to valid JSON (wrap unquoted keys with quotes)
+  raw = raw.replace(/([{,]\s*)(\w+)\s*:/g, '$1"$2":');
+
   try {
-    // Handle cases where user pastes the whole firebaseConfig assignment
-    let cleaned = jsonStr.trim();
-    // Strip "const firebaseConfig = " prefix if present
-    cleaned = cleaned.replace(/^(const|let|var)\s+\w+\s*=\s*/, "");
-    // Strip trailing semicolon
-    cleaned = cleaned.replace(/;\s*$/, "");
+    const obj = JSON.parse(raw);
 
-    const obj = JSON.parse(cleaned);
-    const fields = ["apiKey", "authDomain", "projectId", "storageBucket", "messagingSenderId", "appId"];
-    for (const f of fields) {
-      const el = document.getElementById(`fb-${f}`);
-      if (el && obj[f]) el.value = obj[f];
+    // Validate required fields
+    const required = ["apiKey", "authDomain", "projectId"];
+    const missing = required.filter((k) => !obj[k]?.trim());
+    if (missing.length > 0) {
+      return { cred: null, error: `Missing required fields: ${missing.join(", ")}` };
     }
-    return true;
+
+    // Return only known fields
+    return {
+      cred: {
+        apiKey: obj.apiKey?.trim() || "",
+        authDomain: obj.authDomain?.trim() || "",
+        projectId: obj.projectId?.trim() || "",
+        storageBucket: obj.storageBucket?.trim() || "",
+        messagingSenderId: obj.messagingSenderId?.trim() || "",
+        appId: obj.appId?.trim() || "",
+      },
+      error: null,
+    };
   } catch {
-    return false;
+    return { cred: null, error: "Invalid JSON. Paste the firebaseConfig object from Firebase Console." };
   }
 }
 

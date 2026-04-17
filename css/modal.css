@@ -116,12 +116,26 @@
   align-items: center;
   gap: var(--space-2);
   margin-bottom: var(--space-4);
+  min-width: 0;
 }
 
 .detail-source-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   font-size: var(--text-sm);
   color: hsl(var(--color-link));
-  word-break: break-all;
+  min-width: 0;
+}
+
+.detail-source-link span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detail-source-link svg {
+  flex-shrink: 0;
 }
 
 .detail-source-domain {
@@ -130,6 +144,8 @@
   background: hsl(var(--muted));
   padding: 2px 8px;
   border-radius: var(--radius-full);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .detail-meta {
@@ -280,7 +296,14 @@
   font-size: var(--text-sm);
   color: hsl(var(--muted-foreground));
   line-height: var(--leading-relaxed);
+  margin-bottom: var(--space-1);
+}
+
+.fb-modal-hint {
+  font-size: var(--text-xs);
+  color: hsl(var(--muted-foreground));
   margin-bottom: var(--space-4);
+  font-style: italic;
 }
 
 .fb-paste-section {
@@ -292,37 +315,8 @@
   font-family: var(--font-mono, monospace);
   font-size: var(--text-xs);
   resize: vertical;
-}
-
-.fb-divider {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin: var(--space-5) 0;
-  color: hsl(var(--muted-foreground));
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.fb-divider::before,
-.fb-divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: hsl(var(--border));
-}
-
-.fb-fields {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-3) var(--space-4);
-}
-
-.fb-fields .form-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  line-height: 1.5;
+  tab-size: 2;
 }
 
 .fb-required {
@@ -349,8 +343,124 @@
   letter-spacing: 0.05em;
 }
 
+/* ============================================
+   Image Lightbox
+   ============================================ */
+
+.image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-toast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.image-lightbox.open {
+  opacity: 1;
+}
+
+.lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.85);
+  cursor: pointer;
+}
+
+.lightbox-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 92vw;
+  max-height: 92vh;
+}
+
+.lightbox-img {
+  max-width: 90vw;
+  max-height: 88vh;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  user-select: none;
+}
+
+.lightbox-close {
+  position: fixed;
+  top: var(--space-4);
+  right: var(--space-4);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: rgb(0 0 0 / 0.5);
+  color: white;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  border: none;
+}
+
+.lightbox-close:hover {
+  background: rgb(0 0 0 / 0.8);
+}
+
+.lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: rgb(0 0 0 / 0.5);
+  color: white;
+  cursor: pointer;
+  border: none;
+  transition: background var(--transition-fast);
+  z-index: 1;
+}
+
+.lightbox-nav:hover {
+  background: rgb(0 0 0 / 0.8);
+}
+
+.lightbox-prev {
+  left: var(--space-4);
+}
+
+.lightbox-next {
+  right: var(--space-4);
+}
+
+.lightbox-counter {
+  position: fixed;
+  bottom: var(--space-4);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: var(--text-sm);
+  color: white;
+  background: rgb(0 0 0 / 0.5);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+}
+
 @media (max-width: 640px) {
-  .fb-fields {
-    grid-template-columns: 1fr;
+  .lightbox-nav {
+    width: 36px;
+    height: 36px;
+  }
+
+  .lightbox-prev {
+    left: var(--space-2);
+  }
+
+  .lightbox-next {
+    right: var(--space-2);
   }
 }

@@ -145,6 +145,117 @@
 }
 
 /* ============================================
+   Related Entries Search (Entry Form)
+   ============================================ */
+
+.related-search-wrapper {
+  position: relative;
+}
+
+.related-search-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: var(--z-dropdown);
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  margin-top: var(--space-1);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.related-search-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.related-search-item:hover {
+  background: hsl(var(--accent));
+}
+
+.related-search-item-title {
+  font-size: var(--text-sm);
+  color: hsl(var(--foreground));
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.related-search-item-type {
+  font-size: var(--text-xs);
+  color: hsl(var(--muted-foreground));
+  text-transform: capitalize;
+  flex-shrink: 0;
+}
+
+.related-search-empty {
+  padding: var(--space-3);
+  font-size: var(--text-sm);
+  color: hsl(var(--muted-foreground));
+  text-align: center;
+}
+
+.related-entries-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.related-entries-list:empty {
+  display: none;
+}
+
+.related-entry-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: hsl(var(--muted));
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.related-entry-chip-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: hsl(var(--foreground));
+}
+
+.related-entry-chip-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--transition-fast);
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+.related-entry-chip-remove:hover {
+  background: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
+}
+
+/* ============================================
    Image Upload & Preview (Entry Form)
    ============================================ */
 

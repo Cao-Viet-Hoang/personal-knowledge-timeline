@@ -11,11 +11,14 @@ import {
   initStore,
   setAdapter,
   getEntry,
+  getAllEntries,
   createEntry,
   updateEntry,
   deleteEntry,
   toggleStar,
   setStatus,
+  linkEntries,
+  unlinkEntries,
   filterEntries,
 } from "./store/store.js";
 
@@ -40,7 +43,6 @@ import { compressImages, getImagesFromClipboard, getImagesFromDrop, checkImageLi
 import {
   renderFirebaseModal,
   collectFirebaseCredentials,
-  parseAndFillJson,
   showFirebaseError,
   hideFirebaseError,
   closeFirebaseModal,
@@ -299,6 +301,7 @@ function handleSaveEntry() {
       tags: data.tags,
       status: data.status,
       images: data.images || [],
+      relatedEntryIds: data.relatedEntryIds || [],
     });
   } else {
     // Creating new entry
@@ -311,11 +314,67 @@ function handleSaveEntry() {
       myNote: data.myNote,
       tags: data.tags,
       images: data.images || [],
+      relatedEntryIds: data.relatedEntryIds || [],
     });
   }
 
   closeModal("entry-form-modal");
   render();
+}
+
+/**
+ * Show/hide form fields based on entry type.
+ *
+ * | Field      | Link | Note | Thought | Quote |
+ * |------------|------|------|---------|-------|
+ * | Title      |  ✅  |  ✅  |   ✅    |  ✅   |
+ * | Source URL |  ✅  |  ❌  |   ❌    |  ✅   |
+ * | Excerpt    |  ✅  |  ❌  |   ❌    |  ✅   |
+ * | Content    |  ❌  |  ✅  |   ✅    |  ❌   |
+ * | My Note    |  ✅  |  ✅  |   ❌    |  ✅   |
+ */
+const TYPE_FIELD_MAP = {
+  link:    { source: true,  excerpt: true,  content: false, note: true  },
+  note:    { source: false, excerpt: false, content: true,  note: true  },
+  thought: { source: false, excerpt: false, content: true,  note: false },
+  quote:   { source: true,  excerpt: true,  content: false, note: true  },
+};
+
+function updateFormFieldsByType(type) {
+  const cfg = TYPE_FIELD_MAP[type] || TYPE_FIELD_MAP.link;
+
+  const sourceGroup  = document.getElementById("form-source-group");
+  const excerptGroup = document.getElementById("form-excerpt-group");
+  const contentGroup = document.getElementById("form-content-group");
+  const noteGroup    = document.getElementById("form-note-group");
+
+  if (sourceGroup)  sourceGroup.hidden  = !cfg.source;
+  if (excerptGroup) excerptGroup.hidden = !cfg.excerpt;
+  if (contentGroup) contentGroup.hidden = !cfg.content;
+  if (noteGroup)    noteGroup.hidden    = !cfg.note;
+
+  // Update excerpt label & placeholder for quote type
+  const excerptLabel = document.getElementById("form-excerpt-label");
+  const excerptField = document.getElementById("entry-excerpt");
+  if (excerptLabel && excerptField) {
+    if (type === "quote") {
+      excerptLabel.textContent = "Quote Text";
+      excerptField.placeholder = "The quote you want to save...";
+    } else {
+      excerptLabel.textContent = "Excerpt / Quote";
+      excerptField.placeholder = "Key excerpt or quote from the source...";
+    }
+  }
+
+  // Update content placeholder per type
+  const contentField = document.getElementById("entry-content");
+  if (contentField) {
+    if (type === "thought") {
+      contentField.placeholder = "Write your thought...";
+    } else {
+      contentField.placeholder = "Write your note...";
+    }
+  }
 }
 
 function initFormInteractions() {
@@ -328,8 +387,14 @@ function initFormInteractions() {
       // Update hidden input
       const hiddenType = document.querySelector('#entry-form [name="type"]');
       if (hiddenType) hiddenType.value = btn.dataset.formType;
+      // Update field visibility
+      updateFormFieldsByType(btn.dataset.formType);
     });
   });
+
+  // Set initial field visibility
+  const currentType = document.querySelector('#entry-form [name="type"]')?.value || "link";
+  updateFormFieldsByType(currentType);
 
   // Tag input
   const tagInput = $("#tag-input");
@@ -358,6 +423,121 @@ function initFormInteractions() {
 
   // ── Image interactions ─────────────────────────────
   initFormImageHandlers();
+
+  // ── Related entries search ─────────────────────────
+  initRelatedEntriesSearch();
+}
+
+function initRelatedEntriesSearch() {
+  const input = document.getElementById("related-search-input");
+  const dropdown = document.getElementById("related-search-dropdown");
+  const list = document.getElementById("related-entries-list");
+  if (!input || !dropdown || !list) return;
+
+  // Get current entry id (if editing) to exclude from results
+  const form = document.getElementById("entry-form");
+  const currentId = form?.querySelector('[name="id"]')?.value || null;
+
+  let debounceTimer = null;
+
+  input.addEventListener("input", () => {
+    clearTimeout(debounceTimer);
+    const query = input.value.trim().toLowerCase();
+
+    if (query.length < 2) {
+      dropdown.hidden = true;
+      dropdown.innerHTML = "";
+      return;
+    }
+
+    debounceTimer = setTimeout(() => {
+      // Get already-linked ids
+      const linkedIds = new Set();
+      list.querySelectorAll("[data-related-id]").forEach((el) => {
+        linkedIds.add(el.dataset.relatedId);
+      });
+
+      // Search entries by title
+      const results = getAllEntries()
+        .filter((e) => {
+          if (e.id === currentId) return false;
+          if (linkedIds.has(e.id)) return false;
+          return e.title.toLowerCase().includes(query);
+        })
+        .slice(0, 6);
+
+      if (results.length === 0) {
+        dropdown.innerHTML = `<div class="related-search-empty">No matching entries</div>`;
+      } else {
+        dropdown.innerHTML = results
+          .map(
+            (e) => `
+          <div class="related-search-item" data-select-related="${e.id}">
+            <span class="type-dot type-dot--${e.type}"></span>
+            <span class="related-search-item-title">${escapeForHtml(e.title)}</span>
+            <span class="related-search-item-type">${e.type}</span>
+          </div>
+        `
+          )
+          .join("");
+      }
+      dropdown.hidden = false;
+    }, 200);
+  });
+
+  // Select from dropdown
+  dropdown.addEventListener("click", (e) => {
+    const item = e.target.closest("[data-select-related]");
+    if (!item) return;
+
+    const entryId = item.dataset.selectRelated;
+    const entry = getEntry(entryId);
+    if (!entry) return;
+
+    // Add chip to list
+    const chip = document.createElement("div");
+    chip.className = "related-entry-chip";
+    chip.dataset.relatedId = entry.id;
+    chip.innerHTML = `
+      <span class="type-dot type-dot--${entry.type}"></span>
+      <span class="related-entry-chip-title">${escapeForHtml(entry.title)}</span>
+      <button type="button" class="related-entry-chip-remove" data-remove-related="${entry.id}">${icon("close")}</button>
+    `;
+    list.appendChild(chip);
+
+    // Clear input & hide dropdown
+    input.value = "";
+    dropdown.hidden = true;
+    dropdown.innerHTML = "";
+  });
+
+  // Remove related entry chip
+  list.addEventListener("click", (e) => {
+    const removeBtn = e.target.closest("[data-remove-related]");
+    if (!removeBtn) return;
+    const chip = removeBtn.closest(".related-entry-chip");
+    if (chip) chip.remove();
+  });
+
+  // Hide dropdown on outside click
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("#related-search-wrapper")) {
+      dropdown.hidden = true;
+    }
+  });
+
+  // Hide dropdown on Escape
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      dropdown.hidden = true;
+      input.blur();
+    }
+  });
+}
+
+function escapeForHtml(str) {
+  if (!str) return "";
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 function initFormImageHandlers() {
@@ -469,6 +649,68 @@ function addTagToForm(rawValue) {
   wrapper.insertBefore(tagEl, input);
 }
 
+// ── Image Lightbox ─────────────────────────────────────
+
+function openImageLightbox(images, startIndex = 0) {
+  let currentIndex = startIndex;
+
+  const lightbox = document.createElement("div");
+  lightbox.className = "image-lightbox";
+  lightbox.innerHTML = `
+    <div class="lightbox-backdrop"></div>
+    <div class="lightbox-content">
+      ${images.length > 1 ? `<button class="lightbox-nav lightbox-prev" aria-label="Previous">${icon("chevronLeft")}</button>` : ""}
+      <img class="lightbox-img" src="${images[currentIndex].dataUrl}" alt="Image ${currentIndex + 1}" />
+      ${images.length > 1 ? `<button class="lightbox-nav lightbox-next" aria-label="Next">${icon("chevronRight")}</button>` : ""}
+      <button class="lightbox-close" aria-label="Close">${icon("close")}</button>
+      ${images.length > 1 ? `<span class="lightbox-counter">${currentIndex + 1} / ${images.length}</span>` : ""}
+    </div>
+  `;
+
+  document.body.appendChild(lightbox);
+  // Trigger open animation
+  requestAnimationFrame(() => lightbox.classList.add("open"));
+
+  const img = lightbox.querySelector(".lightbox-img");
+  const counter = lightbox.querySelector(".lightbox-counter");
+
+  function showImage(index) {
+    currentIndex = index;
+    img.src = images[index].dataUrl;
+    if (counter) counter.textContent = `${index + 1} / ${images.length}`;
+  }
+
+  function closeLightbox() {
+    lightbox.classList.remove("open");
+    setTimeout(() => lightbox.remove(), 200);
+  }
+
+  lightbox.querySelector(".lightbox-backdrop").addEventListener("click", closeLightbox);
+  lightbox.querySelector(".lightbox-close").addEventListener("click", closeLightbox);
+
+  const prevBtn = lightbox.querySelector(".lightbox-prev");
+  const nextBtn = lightbox.querySelector(".lightbox-next");
+  if (prevBtn) prevBtn.addEventListener("click", () => showImage((currentIndex - 1 + images.length) % images.length));
+  if (nextBtn) nextBtn.addEventListener("click", () => showImage((currentIndex + 1) % images.length));
+
+  // Keyboard navigation
+  function onKeyDown(e) {
+    if (e.key === "Escape") closeLightbox();
+    if (e.key === "ArrowLeft" && prevBtn) showImage((currentIndex - 1 + images.length) % images.length);
+    if (e.key === "ArrowRight" && nextBtn) showImage((currentIndex + 1) % images.length);
+  }
+  document.addEventListener("keydown", onKeyDown);
+
+  // Cleanup keyboard handler when lightbox is removed
+  const observer = new MutationObserver(() => {
+    if (!document.body.contains(lightbox)) {
+      document.removeEventListener("keydown", onKeyDown);
+      observer.disconnect();
+    }
+  });
+  observer.observe(document.body, { childList: true });
+}
+
 // ── Actions ────────────────────────────────────────────
 
 function handleToggleStar(entryId) {
@@ -513,6 +755,16 @@ function initGlobalDelegation() {
     handleDelete(el.dataset.entryId);
   });
 
+  // Image lightbox
+  on(document, "click", "[data-action='open-lightbox']", (e, el) => {
+    const entryId = el.dataset.entryId;
+    const index = parseInt(el.dataset.imageIndex, 10);
+    const entry = getEntry(entryId);
+    if (entry?.images?.[index]) {
+      openImageLightbox(entry.images, index);
+    }
+  });
+
   // Related entry click inside detail modal
   on(document, "click", "[data-related-entry-id]", (e, el) => {
     openEntryDetail(el.dataset.relatedEntryId);
@@ -538,6 +790,11 @@ function initGlobalDelegation() {
       images.splice(index, 1);
       setFormImages(images);
     }
+  });
+
+  // Firebase disconnect (prod mode)
+  on(document, "click", "[data-action='firebase-disconnect']", () => {
+    handleFirebaseDisconnect();
   });
 }
 
@@ -608,6 +865,16 @@ async function bootApp() {
 }
 
 /**
+ * Disconnect from Firebase and show the credentials modal again.
+ * Credentials are kept in localStorage so the modal is pre-filled.
+ */
+async function handleFirebaseDisconnect() {
+  clearCredentials();
+  // Reload the page to reset Firebase state and show the modal
+  window.location.reload();
+}
+
+/**
  * Show the Firebase credentials modal and wait for the user to connect.
  * Resolves when Firebase is initialized successfully.
  */
@@ -617,32 +884,15 @@ function showFirebaseSetup() {
     const container = document.getElementById("modals");
     container.insertAdjacentHTML("beforeend", renderFirebaseModal(savedCred));
 
-    // Parse JSON button
-    const parseBtn = document.getElementById("fb-parse-json");
-    if (parseBtn) {
-      parseBtn.addEventListener("click", () => {
-        const textarea = document.getElementById("fb-json-paste");
-        if (!textarea) return;
-        const ok = parseAndFillJson(textarea.value);
-        if (!ok) {
-          showFirebaseError("Invalid JSON. Paste the firebaseConfig object from Firebase Console.");
-        } else {
-          hideFirebaseError();
-          textarea.value = "";
-        }
-      });
-    }
-
     // Connect button
     const connectBtn = document.getElementById("fb-connect-btn");
     if (connectBtn) {
       connectBtn.addEventListener("click", async () => {
         hideFirebaseError();
-        const cred = collectFirebaseCredentials();
-        const check = validateCredentials(cred);
+        const { cred, error } = collectFirebaseCredentials();
 
-        if (!check.valid) {
-          showFirebaseError(`Missing required fields: ${check.missing.join(", ")}`);
+        if (error) {
+          showFirebaseError(error);
           return;
         }
 
@@ -670,8 +920,8 @@ function showFirebaseSetup() {
           await initFirebase(savedCred);
           closeFirebaseModal();
           resolve();
-        } catch {
-          // Show modal so user can fix credentials
+        } catch (err) {
+          showFirebaseError(`Auto-connect failed: ${err.message}. Please re-enter your credentials.`);
         }
       })();
     }
