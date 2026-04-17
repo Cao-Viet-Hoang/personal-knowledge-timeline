@@ -529,3 +529,67 @@
 [data-tooltip]:hover::after {
   opacity: 1;
 }
+
+/* ============================================
+   User-select hygiene
+   --------------------------------------------
+   Interactive chrome (buttons, badges, chips, modal headers, sidebars,
+   tooltips, suggestion pills, etc.) shouldn't be accidentally selected on
+   double-click — that just looks broken when clicking quickly.
+   Content bodies (entry text, AI answers, markdown output, chat messages)
+   must remain selectable so users can copy them.
+   ============================================ */
+
+button,
+.btn,
+.badge,
+.status-badge,
+.tag,
+.ai-chip,
+.ai-chip-caret,
+.ai-toolbar-menu-item,
+.ai-toolbar-title,
+.ai-toolbar-status,
+.modal-header,
+.modal-title,
+.modal-close,
+.modal-footer,
+.dropdown-item,
+.search-mode-btn,
+.ask-suggestion,
+.ask-kbd,
+.ask-input-hint,
+.ask-hero-text h2,
+.ask-hero-icon,
+.sidebar,
+.sidebar-item,
+.sidebar-nav,
+.sidebar-section-title,
+.top-bar-title,
+.filter-bar-container,
+.type-selector-btn,
+.profile-btn,
+.detail-section-title,
+.detail-actions,
+.detail-meta,
+.digest-output-title,
+.digest-pattern-theme,
+[data-tooltip]::after {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Content areas — always selectable */
+.detail-title,
+.detail-excerpt,
+.detail-note,
+.detail-content,
+.ask-answer,
+.digest-output-body,
+.digest-pattern-desc,
+.chat-msg-bubble,
+.md-body,
+.md-body * {
+  user-select: text;
+  -webkit-user-select: text;
+}

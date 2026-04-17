@@ -15,6 +15,7 @@ import {
   synthesizeEntries,
   detectPatterns,
 } from "../ai/ai-actions.js";
+import { renderMarkdown } from "../utils/markdown.js";
 
 function esc(str) {
   if (!str) return "";
@@ -42,22 +43,29 @@ export function renderDigestView(container) {
 
   container.innerHTML = `
     <div class="digest-view">
-      <div class="ask-header">
-        <h2>${icon("sparkles", 24)} Digest & Synthesis</h2>
-        <p class="ask-intro">Let AI summarize patterns and insights from your entries.</p>
+      <div class="ask-hero">
+        <div class="ask-hero-icon">${icon("sparkles", 28)}</div>
+        <div class="ask-hero-text">
+          <h2>Digest &amp; Synthesis</h2>
+          <p class="ask-intro">Let AI summarize patterns and insights from your entries.</p>
+        </div>
       </div>
 
       <div class="digest-actions">
-        <button class="btn btn-outline" data-digest-period="week">
+        <button class="btn btn-outline digest-action-btn" data-digest-period="week"
+          data-tooltip="Summarize everything you captured in the last 7 days">
           ${icon("calendar", 16)} Weekly digest
         </button>
-        <button class="btn btn-outline" data-digest-period="month">
+        <button class="btn btn-outline digest-action-btn" data-digest-period="month"
+          data-tooltip="Summarize everything you captured in the last 30 days">
           ${icon("calendar", 16)} Monthly digest
         </button>
-        <button class="btn btn-outline" id="digest-patterns-btn">
+        <button class="btn btn-outline digest-action-btn" id="digest-patterns-btn"
+          data-tooltip="Find recurring themes across your recent entries">
           ${icon("sparkles", 16)} Detect patterns
         </button>
-        <button class="btn btn-outline" id="digest-synthesize-btn">
+        <button class="btn btn-outline digest-action-btn" id="digest-synthesize-btn"
+          data-tooltip="Combine your starred entries into one cohesive narrative">
           ${icon("fileText", 16)} Synthesize starred
         </button>
       </div>
@@ -80,7 +88,7 @@ export function renderDigestView(container) {
     resultEl.innerHTML = `
       <div class="digest-output">
         <h3 class="digest-output-title">${esc(title)}</h3>
-        <div class="digest-output-body">${esc(md).replace(/\n/g, "<br />")}</div>
+        <div class="digest-output-body md-body">${renderMarkdown(md)}</div>
       </div>
     `;
   }

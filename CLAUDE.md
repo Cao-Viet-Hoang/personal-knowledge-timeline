@@ -55,6 +55,7 @@ js/
     icons.js                ← SVG icon library
     date.js                 ← Date formatting
     image.js                ← Image compression & upload
+    markdown.js             ← Minimal safe Markdown → HTML renderer
 data/
   seed.json                 ← Sample data for dev mode
 ```

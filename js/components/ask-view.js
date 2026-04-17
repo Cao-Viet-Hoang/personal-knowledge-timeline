@@ -9,11 +9,38 @@ import { on } from "../utils/dom.js";
 import { isAIConfigured } from "../ai/ai-config.js";
 import { semanticSearch } from "../ai/ai-search.js";
 import { askWithContext } from "../ai/ai-actions.js";
+import { getAllTags, getAllEntries } from "../store/store.js";
 import { formatRelative } from "../utils/date.js";
+import { renderMarkdown } from "../utils/markdown.js";
 
 function esc(str) {
   if (!str) return "";
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+const STATIC_SUGGESTIONS = [
+  "What are the key insights from my recent entries?",
+  "Summarize what I have been learning this week",
+  "What recurring themes appear in my notes?",
+  "What action items have I captured but not finished?",
+];
+
+/** Build a short list of clickable prompt chips. */
+function buildSuggestions() {
+  const tags = getAllTags().slice(0, 3);
+  const entryCount = getAllEntries().length;
+
+  const out = [];
+  // If the library has tags, surface 2-3 of them as topic-specific hints.
+  for (const t of tags.slice(0, 3)) {
+    out.push(`What have I captured about #${t}?`);
+  }
+  // Always offer generic starters; cap total at 6.
+  for (const s of STATIC_SUGGESTIONS) {
+    if (out.length >= 6) break;
+    out.push(s);
+  }
+  return { suggestions: out, entryCount };
 }
 
 export function renderAskView(container, { onEntryClick }) {
@@ -29,23 +56,46 @@ export function renderAskView(container, { onEntryClick }) {
     return;
   }
 
+  const { suggestions, entryCount } = buildSuggestions();
+
   container.innerHTML = `
     <div class="ask-view">
-      <div class="ask-header">
-        <h2>${icon("sparkles", 24)} Ask your knowledge</h2>
-        <p class="ask-intro">Ask questions and get answers grounded in your own notes.</p>
+      <div class="ask-hero">
+        <div class="ask-hero-icon">${icon("sparkles", 28)}</div>
+        <div class="ask-hero-text">
+          <h2>Ask your knowledge</h2>
+          <p class="ask-intro">Get answers grounded in your own notes. ${entryCount} ${entryCount === 1 ? "entry" : "entries"} available.</p>
+        </div>
       </div>
 
-      <div class="ask-input-row">
-        <textarea
-          id="ask-input"
-          class="textarea"
-          rows="2"
-          placeholder="What have I captured about... ?"
-        ></textarea>
-        <button class="btn btn-primary" id="ask-submit">
-          ${icon("sparkles", 16)} Ask
-        </button>
+      <div class="ask-card">
+        <div class="ask-input-row">
+          <textarea
+            id="ask-input"
+            class="textarea ask-textarea"
+            rows="2"
+            placeholder="What have I captured about... ?"
+          ></textarea>
+          <button class="btn btn-primary ask-submit-btn" id="ask-submit">
+            ${icon("sparkles", 16)} Ask
+          </button>
+        </div>
+        <div class="ask-input-hint">
+          <span>${icon("lightbulb", 14)} Try one of these</span>
+          <span class="ask-kbd">Ctrl + Enter to ask</span>
+        </div>
+        <div class="ask-suggestions" id="ask-suggestions">
+          ${suggestions
+            .map(
+              (q) => `
+            <button type="button" class="ask-suggestion" data-ask-suggestion="${esc(q)}">
+              ${icon("arrowRight", 12)}
+              <span>${esc(q)}</span>
+            </button>
+          `
+            )
+            .join("")}
+        </div>
       </div>
 
       <div id="ask-result" class="ask-result"></div>
@@ -106,7 +156,7 @@ export function renderAskView(container, { onEntryClick }) {
         .join("");
 
       resultEl.innerHTML = `
-        <div class="ask-answer">${esc(answer).replace(/\n/g, "<br />")}</div>
+        <div class="ask-answer md-body">${renderMarkdown(answer)}</div>
         <div class="detail-section-title" style="margin-top: var(--space-6)">Sources</div>
         <div class="ask-citations">${citationsHtml}</div>
       `;
@@ -118,6 +168,12 @@ export function renderAskView(container, { onEntryClick }) {
   }
 
   on(container, "click", "#ask-submit", handleAsk);
+  on(container, "click", "[data-ask-suggestion]", (e, el) => {
+    input.value = el.dataset.askSuggestion;
+    input.focus();
+    // Auto-submit for a snappier feel; cheap to cancel by hitting Esc/backspace before the request returns.
+    handleAsk();
+  });
   on(container, "click", ".ask-citation", (e, el) => {
     if (onEntryClick && el.dataset.entryId) onEntryClick(el.dataset.entryId);
   });
