@@ -5,9 +5,11 @@
 
 import { $, on } from "./utils/dom.js";
 import { icon } from "./utils/icons.js";
+import config from "./config.js";
 
 import {
   initStore,
+  setAdapter,
   getEntry,
   createEntry,
   updateEntry,
@@ -17,14 +19,32 @@ import {
   filterEntries,
 } from "./store/store.js";
 
+import localAdapter from "./store/local-adapter.js";
+import firebaseAdapter, {
+  getSavedCredentials,
+  saveCredentials,
+  clearCredentials,
+  validateCredentials,
+  initFirebase,
+} from "./store/firebase-adapter.js";
+
 import { renderSidebar } from "./components/sidebar.js";
 import { renderTimeline } from "./components/timeline.js";
 import { renderSearch } from "./components/search.js";
 import { renderFilterBar } from "./components/filters.js";
 import { renderReview } from "./components/review.js";
 import { renderEntryDetail } from "./components/entry-detail.js";
-import { renderEntryForm, getEntryFormFooter, collectFormData } from "./components/entry-form.js";
+import { renderEntryForm, getEntryFormFooter, collectFormData, getFormImages, setFormImages } from "./components/entry-form.js";
 import { createModalShell, openModal, closeModal, initModalListeners } from "./components/modal.js";
+import { compressImages, getImagesFromClipboard, getImagesFromDrop, checkImageLimits } from "./utils/image.js";
+import {
+  renderFirebaseModal,
+  collectFirebaseCredentials,
+  parseAndFillJson,
+  showFirebaseError,
+  hideFirebaseError,
+  closeFirebaseModal,
+} from "./components/firebase-modal.js";
 
 // ── App State ──────────────────────────────────────────
 
@@ -258,6 +278,15 @@ function handleSaveEntry() {
     return;
   }
 
+  // Image size check
+  if (data.images && data.images.length > 0) {
+    const check = checkImageLimits(data.images);
+    if (!check.ok) {
+      alert(check.message);
+      return;
+    }
+  }
+
   if (data.id) {
     // Editing existing entry
     updateEntry(data.id, {
@@ -269,6 +298,7 @@ function handleSaveEntry() {
       myNote: data.myNote,
       tags: data.tags,
       status: data.status,
+      images: data.images || [],
     });
   } else {
     // Creating new entry
@@ -280,6 +310,7 @@ function handleSaveEntry() {
       content: data.content,
       myNote: data.myNote,
       tags: data.tags,
+      images: data.images || [],
     });
   }
 
@@ -323,6 +354,97 @@ function initFormInteractions() {
   const wrapper = $("#tag-input-wrapper");
   if (wrapper) {
     wrapper.addEventListener("click", () => tagInput?.focus());
+  }
+
+  // ── Image interactions ─────────────────────────────
+  initFormImageHandlers();
+}
+
+function initFormImageHandlers() {
+  const form = document.getElementById("entry-form");
+  if (!form) return;
+
+  // Initialize _images from existing entry data
+  const existingImages = [];
+  form.querySelectorAll("#image-preview-grid .image-preview-item img").forEach((img) => {
+    existingImages.push({ dataUrl: img.src });
+  });
+  form._images = existingImages;
+  form._imageProfile = "auto"; // default profile
+
+  const uploadArea = document.getElementById("image-upload-area");
+  const fileInput = document.getElementById("image-file-input");
+
+  if (!uploadArea || !fileInput) return;
+
+  // Profile toggle buttons
+  const profileBtns = document.querySelectorAll("#image-profile-toggle .profile-btn");
+  profileBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      profileBtns.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      form._imageProfile = btn.dataset.profile;
+    });
+  });
+
+  // Click to upload
+  uploadArea.addEventListener("click", () => fileInput.click());
+
+  // File input change
+  fileInput.addEventListener("change", async () => {
+    if (fileInput.files.length > 0) {
+      await addImagesToForm(fileInput.files);
+      fileInput.value = "";
+    }
+  });
+
+  // Drag & drop
+  uploadArea.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    uploadArea.classList.add("drag-over");
+  });
+  uploadArea.addEventListener("dragleave", () => {
+    uploadArea.classList.remove("drag-over");
+  });
+  uploadArea.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    uploadArea.classList.remove("drag-over");
+    const files = getImagesFromDrop(e);
+    if (files.length > 0) await addImagesToForm(files);
+  });
+
+  // Paste anywhere in the form modal
+  const modalBody = document.getElementById("entry-form-modal-body");
+  if (modalBody) {
+    modalBody.addEventListener("paste", async (e) => {
+      const files = getImagesFromClipboard(e);
+      if (files.length > 0) {
+        e.preventDefault();
+        await addImagesToForm(files);
+      }
+    });
+  }
+}
+
+async function addImagesToForm(files) {
+  const form = document.getElementById("entry-form");
+  if (!form) return;
+
+  const current = form._images || [];
+  const profile = form._imageProfile || "auto";
+  const uploadArea = document.getElementById("image-upload-area");
+
+  // Show loading state
+  if (uploadArea) uploadArea.classList.add("compressing");
+
+  try {
+    const compressed = await compressImages(files, profile);
+    const merged = [...current, ...compressed];
+    setFormImages(merged);
+  } catch (err) {
+    console.error("[Image] Compression failed:", err);
+  } finally {
+    if (uploadArea) uploadArea.classList.remove("compressing");
   }
 }
 
@@ -406,6 +528,17 @@ function initGlobalDelegation() {
     const tag = el.closest(".tag");
     if (tag) tag.remove();
   });
+
+  // Remove image in form
+  on(document, "click", "[data-remove-image]", (e, el) => {
+    e.stopPropagation();
+    const index = parseInt(el.dataset.removeImage, 10);
+    const images = getFormImages();
+    if (index >= 0 && index < images.length) {
+      images.splice(index, 1);
+      setFormImages(images);
+    }
+  });
 }
 
 // ── Keyboard Shortcuts ─────────────────────────────────
@@ -458,8 +591,10 @@ function initTopBar() {
 
 // ── Bootstrap ──────────────────────────────────────────
 
-async function init() {
-  // Initialize data store (loads from localStorage or seeds from JSON)
+/**
+ * Boot the app after the adapter is ready.
+ */
+async function bootApp() {
   await initStore();
 
   createModals();
@@ -470,6 +605,93 @@ async function init() {
   initSidebar();
 
   render();
+}
+
+/**
+ * Show the Firebase credentials modal and wait for the user to connect.
+ * Resolves when Firebase is initialized successfully.
+ */
+function showFirebaseSetup() {
+  return new Promise((resolve) => {
+    const savedCred = getSavedCredentials();
+    const container = document.getElementById("modals");
+    container.insertAdjacentHTML("beforeend", renderFirebaseModal(savedCred));
+
+    // Parse JSON button
+    const parseBtn = document.getElementById("fb-parse-json");
+    if (parseBtn) {
+      parseBtn.addEventListener("click", () => {
+        const textarea = document.getElementById("fb-json-paste");
+        if (!textarea) return;
+        const ok = parseAndFillJson(textarea.value);
+        if (!ok) {
+          showFirebaseError("Invalid JSON. Paste the firebaseConfig object from Firebase Console.");
+        } else {
+          hideFirebaseError();
+          textarea.value = "";
+        }
+      });
+    }
+
+    // Connect button
+    const connectBtn = document.getElementById("fb-connect-btn");
+    if (connectBtn) {
+      connectBtn.addEventListener("click", async () => {
+        hideFirebaseError();
+        const cred = collectFirebaseCredentials();
+        const check = validateCredentials(cred);
+
+        if (!check.valid) {
+          showFirebaseError(`Missing required fields: ${check.missing.join(", ")}`);
+          return;
+        }
+
+        connectBtn.disabled = true;
+        connectBtn.textContent = "Connecting...";
+
+        try {
+          await initFirebase(cred);
+          saveCredentials(cred);
+          closeFirebaseModal();
+          resolve();
+        } catch (err) {
+          console.error("[Firebase] Init failed:", err);
+          showFirebaseError(`Connection failed: ${err.message}. Check your credentials.`);
+          connectBtn.disabled = false;
+          connectBtn.textContent = "Connect to Firebase";
+        }
+      });
+    }
+
+    // If credentials are already saved, auto-try
+    if (savedCred && validateCredentials(savedCred).valid) {
+      (async () => {
+        try {
+          await initFirebase(savedCred);
+          closeFirebaseModal();
+          resolve();
+        } catch {
+          // Show modal so user can fix credentials
+        }
+      })();
+    }
+  });
+}
+
+async function init() {
+  if (config.isDev) {
+    // Dev mode: use localStorage adapter
+    setAdapter(localAdapter);
+    await bootApp();
+  } else {
+    // Prod mode: need Firebase credentials first
+    await showFirebaseSetup();
+    setAdapter(firebaseAdapter);
+    await bootApp();
+  }
+
+  // Show env badge in console
+  console.log(`[PKT] Running in ${config.env.toUpperCase()} mode`);
 }
 
 document.addEventListener("DOMContentLoaded", init);

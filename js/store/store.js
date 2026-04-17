@@ -1,16 +1,16 @@
 /**
  * Application data store.
  *
- * Persistence: localStorage (mirrors Firestore document structure).
- * On first load, seeds from data/seed.json.
- * All mutations go through this module so swapping to Firestore later
- * only requires replacing the read/write primitives below.
+ * Persistence is delegated to an adapter:
+ *   - "dev"  → LocalAdapter  (localStorage + seed JSON)
+ *   - "prod" → FirebaseAdapter (Firestore)
+ *
+ * All business logic (CRUD, search, filter) lives here.
+ * The adapter only handles load / persist.
  */
 
 import { emit, Events } from "./event-bus.js";
-
-const STORAGE_KEY = "pkt_store";
-const SEED_URL = "data/seed.json";
+import config from "../config.js";
 
 // ── Internal state ─────────────────────────────────────
 
@@ -20,32 +20,48 @@ let _db = {
   meta: { version: 1, lastEntryId: 0, lastReflectionId: 0 },
 };
 
-// ── Persistence helpers ────────────────────────────────
+// ── Adapter interface ──────────────────────────────────
+//
+//   adapter.load()    → returns { entries, reflections, meta } or null
+//   adapter.persist(db) → saves the full _db object
+//   adapter.clear()   → wipe stored data
+//
+let _adapter = null;
+
+export function setAdapter(adapter) {
+  _adapter = adapter;
+}
+
+// ── Persistence helpers (delegate to adapter) ──────────
 
 function persist() {
+  if (!_adapter) return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(_db));
+    _adapter.persist(_db);
   } catch (err) {
     console.error("[Store] Failed to persist:", err);
   }
 }
 
-function loadFromStorage() {
+async function loadFromAdapter() {
+  if (!_adapter) return false;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      _db = JSON.parse(raw);
+    const data = await _adapter.load();
+    if (data) {
+      _db.entries = data.entries || {};
+      _db.reflections = data.reflections || {};
+      _db.meta = data.meta || _db.meta;
       return true;
     }
   } catch (err) {
-    console.error("[Store] Failed to load from storage:", err);
+    console.error("[Store] Failed to load from adapter:", err);
   }
   return false;
 }
 
 async function loadSeed() {
   try {
-    const res = await fetch(SEED_URL);
+    const res = await fetch(config.seedUrl);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const seed = await res.json();
     _db.entries = seed.entries || {};
@@ -60,7 +76,7 @@ async function loadSeed() {
 // ── Init ───────────────────────────────────────────────
 
 export async function initStore() {
-  const loaded = loadFromStorage();
+  const loaded = await loadFromAdapter();
   if (!loaded) {
     await loadSeed();
   }
@@ -68,7 +84,7 @@ export async function initStore() {
 
 /** Reset store to seed data (dev helper). */
 export async function resetStore() {
-  localStorage.removeItem(STORAGE_KEY);
+  if (_adapter?.clear) await _adapter.clear();
   await loadSeed();
   emit(Events.ENTRIES_CHANGED);
   emit(Events.REFLECTIONS_CHANGED);
@@ -121,6 +137,7 @@ export function createEntry(data) {
     excerpt: data.excerpt || "",
     myNote: data.myNote || "",
     tags: data.tags || [],
+    images: data.images || [],
     createdAt: timestamp,
     updatedAt: timestamp,
     readAt: null,

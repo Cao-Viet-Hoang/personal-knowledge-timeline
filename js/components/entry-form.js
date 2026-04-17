@@ -5,6 +5,7 @@
  */
 
 import { icon } from "../utils/icons.js";
+import { formatBytes, checkImageLimits } from "../utils/image.js";
 
 export function renderEntryForm(entry = null) {
   const type = entry?.type || "link";
@@ -15,6 +16,7 @@ export function renderEntryForm(entry = null) {
   const myNote = entry?.myNote || "";
   const tags = entry?.tags || [];
   const status = entry?.status || "inbox";
+  const images = entry?.images || [];
 
   const tagsHtml = tags
     .map(
@@ -77,6 +79,35 @@ export function renderEntryForm(entry = null) {
       </div>
 
       <div class="form-group">
+        <label class="label">Images</label>
+        <div class="image-upload-controls">
+          <div class="image-profile-toggle" id="image-profile-toggle">
+            <button type="button" class="profile-btn active" data-profile="auto" title="Auto-detect: screenshot vs photo">Auto</button>
+            <button type="button" class="profile-btn" data-profile="photo" title="Optimize for photos (smaller file)">Photo</button>
+            <button type="button" class="profile-btn" data-profile="screenshot" title="Optimize for screenshots (clearer text)">Screenshot</button>
+          </div>
+        </div>
+        <div class="image-upload-area" id="image-upload-area">
+          <div class="image-upload-prompt" id="image-upload-prompt">
+            ${icon("plus")}
+            <span>Drop images, paste from clipboard, or click to upload</span>
+            <span class="form-hint">Max 10 images. Auto-compressed to save space.</span>
+          </div>
+          <input type="file" id="image-file-input" accept="image/*" multiple hidden />
+        </div>
+        <div class="image-preview-grid" id="image-preview-grid">
+          ${images.map((img, i) => `
+            <div class="image-preview-item" data-image-index="${i}">
+              <img src="${img.dataUrl}" alt="Image ${i + 1}" />
+              <button type="button" class="image-remove-btn" data-remove-image="${i}" title="Remove">${icon("close")}</button>
+              <span class="image-size-label">${formatBytes(img.dataUrl.length)}${img.profile ? ` · ${img.profile}` : ""}</span>
+            </div>
+          `).join("")}
+        </div>
+        <div class="image-limit-warning" id="image-limit-warning" hidden></div>
+      </div>
+
+      <div class="form-group">
         <label class="label">Tags</label>
         <div class="tag-input-wrapper" id="tag-input-wrapper">
           ${tagsHtml}
@@ -136,7 +167,70 @@ export function collectFormData() {
     tags.push(el.dataset.tag);
   });
 
-  return { id, type, title, sourceUrl, excerpt, content, myNote, tags, status };
+  // Collect images from preview grid
+  const images = getFormImages();
+
+  return { id, type, title, sourceUrl, excerpt, content, myNote, tags, status, images };
+}
+
+/**
+ * Get current images array from the form state.
+ * Stored on the form element as _images.
+ */
+export function getFormImages() {
+  const form = document.getElementById("entry-form");
+  return form?._images || [];
+}
+
+/**
+ * Set images array on the form state and re-render preview.
+ */
+export function setFormImages(images) {
+  const form = document.getElementById("entry-form");
+  if (!form) return;
+  form._images = images;
+  renderImagePreviews();
+  updateImageWarning();
+}
+
+function renderImagePreviews() {
+  const grid = document.getElementById("image-preview-grid");
+  const form = document.getElementById("entry-form");
+  if (!grid || !form) return;
+
+  const images = form._images || [];
+  grid.innerHTML = images
+    .map(
+      (img, i) => `
+    <div class="image-preview-item" data-image-index="${i}">
+      <img src="${img.dataUrl}" alt="Image ${i + 1}" />
+      <button type="button" class="image-remove-btn" data-remove-image="${i}" title="Remove">${icon("close")}</button>
+      <span class="image-size-label">${formatBytes(img.dataUrl.length)}${img.profile ? ` · ${img.profile}` : ""}</span>
+    </div>
+  `
+    )
+    .join("");
+}
+
+function updateImageWarning() {
+  const warningEl = document.getElementById("image-limit-warning");
+  const form = document.getElementById("entry-form");
+  if (!warningEl || !form) return;
+
+  const images = form._images || [];
+  if (images.length === 0) {
+    warningEl.hidden = true;
+    return;
+  }
+
+  const check = checkImageLimits(images);
+  if (check.level === "ok") {
+    warningEl.hidden = true;
+  } else {
+    warningEl.hidden = false;
+    warningEl.className = `image-limit-warning image-limit-${check.level}`;
+    warningEl.textContent = check.message;
+  }
 }
 
 function esc(str) {

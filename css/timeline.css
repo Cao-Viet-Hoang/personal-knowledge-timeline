@@ -359,3 +359,30 @@
   margin-left: auto;
   color: hsl(var(--muted-foreground));
 }
+
+/* ============================================
+   Entry Card Image Thumbnails
+   ============================================ */
+
+.ec-images {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  align-items: center;
+}
+
+.ec-img-thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid hsl(var(--border));
+  flex-shrink: 0;
+}
+
+.ec-img-more {
+  font-size: var(--text-xs);
+  color: hsl(var(--muted-foreground));
+  font-weight: var(--font-medium);
+  padding: 0 var(--space-2);
+}

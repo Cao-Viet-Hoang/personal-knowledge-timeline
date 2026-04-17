@@ -48,6 +48,18 @@ export function renderEntryCard(entry) {
       </div>`;
   }
 
+  // ── Images (thumbnail strip) ──
+  let imagesHtml = "";
+  if (entry.images && entry.images.length > 0) {
+    const shown = entry.images.slice(0, 3);
+    const extra = entry.images.length - 3;
+    imagesHtml = `
+      <div class="ec-images">
+        ${shown.map((img) => `<img class="ec-img-thumb" src="${img.dataUrl}" alt="" loading="lazy" />`).join("")}
+        ${extra > 0 ? `<span class="ec-img-more">+${extra}</span>` : ""}
+      </div>`;
+  }
+
   // ── Footer tags ──
   const tagsHtml = entry.tags.length
     ? entry.tags.map((t) => `<span class="tag" data-tag="${esc(t)}">#${esc(t)}</span>`).join("")
@@ -72,6 +84,7 @@ export function renderEntryCard(entry) {
         <!-- Body -->
         <h4 class="ec-title">${esc(entry.title)}</h4>
         ${bodyHtml ? `<div class="ec-body">${bodyHtml}</div>` : ""}
+        ${imagesHtml}
 
         <!-- Footer -->
         <div class="ec-footer">

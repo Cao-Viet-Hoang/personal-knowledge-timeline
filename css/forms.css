@@ -143,3 +143,189 @@
 .animate-slide-up {
   animation: slideUp var(--transition-base) ease-out;
 }
+
+/* ============================================
+   Image Upload & Preview (Entry Form)
+   ============================================ */
+
+.image-upload-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: var(--space-2);
+}
+
+.image-profile-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.profile-btn {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  border: none;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border-right: 1px solid hsl(var(--border));
+}
+
+.profile-btn:last-child {
+  border-right: none;
+}
+
+.profile-btn:hover {
+  background: hsl(var(--accent));
+}
+
+.profile-btn.active {
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.image-upload-area {
+  border: 2px dashed hsl(var(--border));
+  border-radius: var(--radius-md);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.image-upload-area:hover,
+.image-upload-area.drag-over {
+  border-color: hsl(var(--ring));
+  background: hsl(var(--accent) / 0.5);
+}
+
+.image-upload-area.compressing {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.image-upload-area.compressing .image-upload-prompt span:first-of-type {
+  display: none;
+}
+
+.image-upload-area.compressing::after {
+  content: "Compressing...";
+  font-size: var(--text-sm);
+  color: hsl(var(--muted-foreground));
+}
+
+.image-upload-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  color: hsl(var(--muted-foreground));
+  font-size: var(--text-sm);
+}
+
+.image-upload-prompt svg {
+  width: 24px;
+  height: 24px;
+  opacity: 0.5;
+}
+
+/* ---- Preview Grid ---- */
+
+.image-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.image-preview-grid:empty {
+  display: none;
+}
+
+.image-preview-item {
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  aspect-ratio: 1;
+  background: hsl(var(--muted));
+  animation: fadeIn var(--transition-fast);
+}
+
+.image-preview-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.image-remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground, 0 0% 100%));
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  padding: 0;
+}
+
+.image-remove-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.image-preview-item:hover .image-remove-btn {
+  opacity: 1;
+}
+
+.image-size-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: hsl(0 0% 0% / 0.6);
+  color: white;
+  font-size: 10px;
+  text-align: center;
+  padding: 2px 0;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.image-preview-item:hover .image-size-label {
+  opacity: 1;
+}
+
+/* ---- Warning / Error banners ---- */
+
+.image-limit-warning {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+}
+
+.image-limit-warn {
+  background: hsl(38 92% 50% / 0.12);
+  color: hsl(38 92% 40%);
+  border: 1px solid hsl(38 92% 50% / 0.3);
+}
+
+.image-limit-error {
+  background: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
+  border: 1px solid hsl(var(--destructive) / 0.3);
+}

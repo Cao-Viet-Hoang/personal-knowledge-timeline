@@ -70,6 +70,22 @@ export function renderEntryDetail(entry) {
     `
     : "";
 
+  // Images
+  const imagesHtml = entry.images && entry.images.length > 0
+    ? `
+      <div class="detail-section">
+        <div class="detail-section-title">Images (${entry.images.length})</div>
+        <div class="detail-images-grid">
+          ${entry.images.map((img, i) => `
+            <a class="detail-image-item" href="${img.dataUrl}" target="_blank" rel="noopener" title="Click to open full size">
+              <img src="${img.dataUrl}" alt="Image ${i + 1}" loading="lazy" />
+            </a>
+          `).join("")}
+        </div>
+      </div>
+    `
+    : "";
+
   // Related entries
   let relatedHtml = "";
   if (entry.relatedEntryIds && entry.relatedEntryIds.length > 0) {
@@ -134,6 +150,7 @@ export function renderEntryDetail(entry) {
     ${excerptHtml}
     ${contentHtml}
     ${noteHtml}
+    ${imagesHtml}
     ${tagsHtml}
     ${relatedHtml}
 
