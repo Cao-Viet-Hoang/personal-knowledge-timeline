@@ -527,10 +527,41 @@
 
 .ai-tag-merge-result {
   font-size: var(--text-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .ai-tag-merge-result:empty {
   display: none;
+}
+
+.ai-tag-merge-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: hsl(var(--muted) / 0.6);
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-md);
+}
+
+.ai-tag-merge-count {
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: hsl(var(--muted-foreground));
+}
+
+.ai-tag-merge-notice {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: hsl(var(--color-note));
+  background: hsl(var(--color-note) / 0.1);
+  border: 1px solid hsl(var(--color-note) / 0.3);
+  border-radius: var(--radius-md);
+  animation: fadeIn var(--transition-base) ease-out;
 }
 
 .ai-tag-groups {
@@ -541,19 +572,51 @@
 
 .ai-tag-group {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-md);
+}
+
+.ai-tag-group-body {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  background: hsl(var(--muted));
-  border: 1px solid hsl(var(--border));
-  border-radius: var(--radius-md);
+  min-width: 0;
+  flex: 1;
 }
 
 .ai-tag-group-arrow {
   font-size: var(--text-sm);
   color: hsl(var(--muted-foreground));
   font-weight: var(--font-semibold);
+}
+
+.ai-tag-group-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .ai-tag-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ai-tag-group-actions {
+    justify-content: flex-end;
+  }
+
+  .ai-tag-merge-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 /* ---- Footer ---- */

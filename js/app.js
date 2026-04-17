@@ -1107,29 +1107,112 @@ function openAISettings() {
   });
 
   // Suggest tag merges
+  let _tagMergeGroups = [];
+  const renderTagMergeGroups = () => {
+    const resultEl = $("#ai-tag-merge-result");
+    if (!resultEl) return;
+    if (_tagMergeGroups.length === 0) {
+      resultEl.innerHTML = `<span class="ai-test-result">No duplicate tag groups to merge.</span>`;
+      return;
+    }
+    resultEl.innerHTML = `
+      <div class="ai-tag-merge-toolbar">
+        <span class="ai-tag-merge-count">${_tagMergeGroups.length} group${_tagMergeGroups.length === 1 ? "" : "s"} suggested</span>
+        <button type="button" class="btn btn-outline" data-tag-merge-all>
+          ${icon("checkCircle", 14)} Apply all
+        </button>
+      </div>
+      <div class="ai-tag-groups">
+        ${_tagMergeGroups.map((g, i) => `
+          <div class="ai-tag-group" data-merge-index="${i}">
+            <div class="ai-tag-group-body">
+              <span class="tag">#${escapeForHtml(g.canonical)}</span>
+              <span class="ai-tag-group-arrow">←</span>
+              ${(g.aliases || []).map((a) => `<span class="tag tag--muted">#${escapeForHtml(a)}</span>`).join(" ")}
+            </div>
+            <div class="ai-tag-group-actions">
+              <button type="button" class="btn btn-ghost btn-sm" data-tag-merge-skip="${i}" title="Skip this group">
+                ${icon("close", 14)}
+              </button>
+              <button type="button" class="btn btn-primary btn-sm" data-tag-merge-apply="${i}">
+                Apply
+              </button>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  };
+
   $("#ai-merge-tags-btn")?.addEventListener("click", async () => {
     const resultEl = $("#ai-tag-merge-result");
     if (!resultEl) return;
     resultEl.innerHTML = `<span class="ai-test-result">Analyzing tags...</span>`;
     try {
       const groups = await suggestTagMerges(getAllTags());
-      if (groups.length === 0) {
+      _tagMergeGroups = (groups || []).filter((g) => g && g.canonical && Array.isArray(g.aliases) && g.aliases.length > 0);
+      if (_tagMergeGroups.length === 0) {
         resultEl.innerHTML = `<span class="ai-test-result">No duplicate tag groups found.</span>`;
         return;
       }
-      resultEl.innerHTML = `
-        <div class="ai-tag-groups">
-          ${groups.map((g) => `
-            <div class="ai-tag-group">
-              <span class="tag">#${escapeForHtml(g.canonical)}</span>
-              <span class="ai-tag-group-arrow">←</span>
-              ${(g.aliases || []).map((a) => `<span class="tag tag--muted">#${escapeForHtml(a)}</span>`).join(" ")}
-            </div>
-          `).join("")}
-        </div>
-      `;
+      renderTagMergeGroups();
     } catch (err) {
       resultEl.innerHTML = `<span class="ai-test-fail">${escapeForHtml(err.message)}</span>`;
+    }
+  });
+
+  const applyMergeAtIndex = async (idx) => {
+    const group = _tagMergeGroups[idx];
+    if (!group) return;
+    const aliasList = group.aliases.join(", ");
+    const ok = await openConfirm({
+      title: `Merge into #${group.canonical}?`,
+      message: `All entries tagged with ${aliasList} will be retagged as #${group.canonical}. This cannot be undone automatically.`,
+      confirmLabel: "Apply merge",
+    });
+    if (!ok) return;
+    const changed = mergeTags(group.canonical, group.aliases);
+    _tagMergeGroups.splice(idx, 1);
+    renderTagMergeGroups();
+    const resultEl = $("#ai-tag-merge-result");
+    if (resultEl) {
+      const notice = document.createElement("div");
+      notice.className = "ai-tag-merge-notice";
+      notice.textContent = `Merged into #${group.canonical} · ${changed} ${changed === 1 ? "entry" : "entries"} updated.`;
+      resultEl.prepend(notice);
+      setTimeout(() => notice.remove(), 4000);
+    }
+  };
+
+  on($("#ai-tag-merge-result"), "click", "[data-tag-merge-apply]", (_e, el) => {
+    applyMergeAtIndex(Number(el.getAttribute("data-tag-merge-apply")));
+  });
+  on($("#ai-tag-merge-result"), "click", "[data-tag-merge-skip]", (_e, el) => {
+    const idx = Number(el.getAttribute("data-tag-merge-skip"));
+    _tagMergeGroups.splice(idx, 1);
+    renderTagMergeGroups();
+  });
+  on($("#ai-tag-merge-result"), "click", "[data-tag-merge-all]", async () => {
+    if (_tagMergeGroups.length === 0) return;
+    const ok = await openConfirm({
+      title: `Apply all ${_tagMergeGroups.length} merges?`,
+      message: `Every listed alias will be replaced with its canonical tag across all entries. This cannot be undone automatically.`,
+      confirmLabel: "Apply all",
+    });
+    if (!ok) return;
+    let totalChanged = 0;
+    for (const group of _tagMergeGroups) {
+      totalChanged += mergeTags(group.canonical, group.aliases);
+    }
+    const applied = _tagMergeGroups.length;
+    _tagMergeGroups = [];
+    renderTagMergeGroups();
+    const resultEl = $("#ai-tag-merge-result");
+    if (resultEl) {
+      const notice = document.createElement("div");
+      notice.className = "ai-tag-merge-notice";
+      notice.textContent = `Applied ${applied} merges · ${totalChanged} ${totalChanged === 1 ? "entry" : "entries"} updated.`;
+      resultEl.prepend(notice);
     }
   });
 

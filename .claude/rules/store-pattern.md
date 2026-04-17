@@ -111,6 +111,10 @@ When adding new data operations:
 - Both return sorted arrays (newest first / highest score first)
 - Adding a new filter criterion: add it to the `filterEntries` function, update the filter UI in `filters.js`
 
+### 7a. Bulk Tag Operations
+- `mergeTags(canonical, aliases)` rewrites every entry that contains any alias: alias tags are removed, canonical is added (deduped), aliases equal to the canonical are ignored. Returns the count of modified entries. Emits `ENTRY_UPDATED` per modified entry plus a single trailing `ENTRIES_CHANGED`.
+- Use this whenever you replace a tag across the whole dataset (e.g. AI Settings → Suggest tag merges). Do not hand-roll a loop of `removeTag`/`addTag` calls — that produces one `ENTRIES_CHANGED` per swap and forces the timeline to re-render repeatedly.
+
 ### 8. ID Generation
 - Entries: `e_001`, `e_002`, ... via `nextEntryId()`
 - Reflections: `r_001`, `r_002`, ... via `nextReflectionId()`
