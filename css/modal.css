@@ -47,6 +47,10 @@
   max-width: 780px;
 }
 
+.modal--sm {
+  max-width: 420px;
+}
+
 .modal-header {
   display: flex;
   align-items: center;
@@ -94,6 +98,15 @@
   padding: var(--space-4) var(--space-6);
   border-top: 1px solid hsl(var(--border));
   flex-shrink: 0;
+}
+
+/* ---- Confirm modal ---- */
+
+.confirm-modal-message {
+  font-size: var(--text-sm);
+  color: hsl(var(--muted-foreground));
+  line-height: var(--leading-relaxed);
+  margin: 0;
 }
 
 /* ---- Entry detail modal ---- */

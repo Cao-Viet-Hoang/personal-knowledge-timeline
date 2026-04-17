@@ -39,6 +39,7 @@ import { renderReview } from "./components/review.js";
 import { renderEntryDetail } from "./components/entry-detail.js";
 import { renderEntryForm, getEntryFormFooter, collectFormData, getFormImages, setFormImages } from "./components/entry-form.js";
 import { createModalShell, openModal, closeModal, initModalListeners } from "./components/modal.js";
+import { openConfirm, initConfirmModal } from "./components/confirm-modal.js";
 import { compressImages, getImagesFromClipboard, getImagesFromDrop, checkImageLimits } from "./utils/image.js";
 import {
   renderFirebaseModal,
@@ -809,8 +810,17 @@ function handleToggleStar(entryId) {
   render();
 }
 
-function handleDelete(entryId) {
-  if (!confirm("Are you sure you want to delete this entry?")) return;
+async function handleDelete(entryId) {
+  const entry = getEntry(entryId);
+  const title = entry?.title ? `"${entry.title}"` : "this entry";
+  const ok = await openConfirm({
+    title: "Delete entry?",
+    message: `Delete ${title}? This action cannot be undone.`,
+    confirmLabel: "Delete",
+    cancelLabel: "Cancel",
+    destructive: true,
+  });
+  if (!ok) return;
   deleteEntry(entryId);
   closeModal("entry-detail-modal");
   render();
@@ -906,7 +916,31 @@ function initGlobalDelegation() {
   // Entry form: AI action buttons
   on(document, "click", "[data-ai-action]", (e, el) => {
     e.preventDefault();
+    closeAIToolbarMenus();
     runFormAIAction(el.dataset.aiAction, el);
+  });
+
+  // Entry form: AI toolbar dropdown (Translate)
+  on(document, "click", "[data-ai-menu-toggle]", (e, el) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const key = el.dataset.aiMenuToggle;
+    const menu = document.getElementById(`ai-${key}-menu`);
+    if (!menu) return;
+    const isOpen = !menu.hidden;
+    closeAIToolbarMenus();
+    if (!isOpen) {
+      menu.hidden = false;
+      el.setAttribute("aria-expanded", "true");
+    }
+  });
+
+  // Close AI toolbar dropdowns on outside click / Escape
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".ai-toolbar-menu-wrapper")) closeAIToolbarMenus();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeAIToolbarMenus();
   });
 
   // Duplicate warning: ignore / view duplicate
@@ -951,6 +985,13 @@ function createModals() {
       size: "lg",
       footerHtml: getEntryFormFooter(false),
     })}
+    ${createModalShell("confirm-modal", "Confirm", {
+      size: "sm",
+      footerHtml: `
+        <button type="button" class="btn btn-outline" data-confirm-cancel>Cancel</button>
+        <button type="button" class="btn btn-destructive" data-confirm-ok>Confirm</button>
+      `,
+    })}
   `;
 }
 
@@ -982,6 +1023,7 @@ async function bootApp() {
 
   createModals();
   initModalListeners();
+  initConfirmModal();
   initGlobalDelegation();
   initShortcuts();
   initTopBar();
@@ -1045,7 +1087,13 @@ function openAISettings() {
 
   // Clear embeddings
   $("#ai-clear-index-btn")?.addEventListener("click", async () => {
-    if (!confirm("Delete all embeddings? You can re-index any time.")) return;
+    const ok = await openConfirm({
+      title: "Delete all embeddings?",
+      message: "All stored vectors will be removed. You can re-index any time.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     const adapter = _currentAdapter;
     if (adapter?.clearEmbeddings) await adapter.clearEmbeddings();
     clearEmbeddingCache();
@@ -1082,8 +1130,14 @@ function openAISettings() {
   });
 
   // Forget credentials
-  $("#ai-forget-btn")?.addEventListener("click", () => {
-    if (!confirm("Remove stored AI credentials from this browser?")) return;
+  $("#ai-forget-btn")?.addEventListener("click", async () => {
+    const ok = await openConfirm({
+      title: "Forget AI credentials?",
+      message: "Remove the stored API key and endpoint from this browser. You can re-enter them later.",
+      confirmLabel: "Forget",
+      destructive: true,
+    });
+    if (!ok) return;
     clearAIConfig();
     close();
     render();
@@ -1276,11 +1330,19 @@ function setFieldValue(id, value) {
   if (el) el.value = value;
 }
 
+function closeAIToolbarMenus() {
+  document.querySelectorAll(".ai-toolbar-menu").forEach((m) => (m.hidden = true));
+  document.querySelectorAll("[data-ai-menu-toggle]").forEach((b) =>
+    b.setAttribute("aria-expanded", "false")
+  );
+}
+
 function setFormAIStatus(msg, isError = false) {
   const el = $("#form-ai-status");
   if (!el) return;
   el.textContent = msg;
-  el.classList.toggle("form-ai-status--error", isError);
+  el.classList.toggle("ai-toolbar-status--error", isError);
+  el.title = msg || "";
 }
 
 /** Check for possible duplicates based on current form title+content. */

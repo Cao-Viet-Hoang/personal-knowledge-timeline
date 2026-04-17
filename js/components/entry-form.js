@@ -57,30 +57,50 @@ export function renderEntryForm(entry = null) {
       <input type="hidden" name="id" value="${entry?.id || ""}" />
       <input type="hidden" name="type" value="${type}" />
 
-      <div class="form-ai-toolbar">
-        <span class="form-ai-toolbar-label">${icon("sparkles", 14)} AI</span>
-        <button type="button" class="btn btn-ghost btn-sm" data-ai-action="parse-url" title="Fetch & analyze the source URL">
-          ${icon("globe")} Parse URL
-        </button>
-        <button type="button" class="btn btn-ghost btn-sm" data-ai-action="auto-title" title="Generate a title">
-          ${icon("wand")} Title
-        </button>
-        <button type="button" class="btn btn-ghost btn-sm" data-ai-action="auto-summary" title="Summarize content">
-          ${icon("wand")} Summary
-        </button>
-        <button type="button" class="btn btn-ghost btn-sm" data-ai-action="auto-tags" title="Suggest tags">
-          ${icon("tag")} Tags
-        </button>
-        <button type="button" class="btn btn-ghost btn-sm" data-ai-action="expand" title="Expand the content">
-          ${icon("wand")} Expand
-        </button>
-        <button type="button" class="btn btn-ghost btn-sm" data-ai-action="translate-en" title="Translate to English">
-          ${icon("languages")} EN
-        </button>
-        <button type="button" class="btn btn-ghost btn-sm" data-ai-action="translate-vi" title="Translate to Vietnamese">
-          ${icon("languages")} VI
-        </button>
-        <span id="form-ai-status" class="form-ai-status"></span>
+      <div class="ai-toolbar" role="group" aria-label="AI assist">
+        <div class="ai-toolbar-header">
+          <span class="ai-toolbar-title">${icon("sparkles", 14)} AI Assist</span>
+          <span id="form-ai-status" class="ai-toolbar-status" aria-live="polite"></span>
+        </div>
+        <div class="ai-toolbar-actions">
+          <div class="ai-toolbar-group" aria-label="Fetch from URL">
+            <button type="button" class="ai-chip" data-ai-action="parse-url" title="Fetch and analyze the source URL">
+              ${icon("globe")}<span>From URL</span>
+            </button>
+          </div>
+
+          <span class="ai-toolbar-divider" aria-hidden="true"></span>
+
+          <div class="ai-toolbar-group" aria-label="Generate fields">
+            <button type="button" class="ai-chip" data-ai-action="auto-title" title="Generate a title from the content">
+              ${icon("wand")}<span>Title</span>
+            </button>
+            <button type="button" class="ai-chip" data-ai-action="auto-summary" title="Summarize the content">
+              ${icon("fileText")}<span>Summary</span>
+            </button>
+            <button type="button" class="ai-chip" data-ai-action="auto-tags" title="Suggest tags">
+              ${icon("tag")}<span>Tags</span>
+            </button>
+          </div>
+
+          <span class="ai-toolbar-divider" aria-hidden="true"></span>
+
+          <div class="ai-toolbar-group" aria-label="Rewrite content">
+            <button type="button" class="ai-chip" data-ai-action="expand" title="Expand the content with more detail">
+              ${icon("wand")}<span>Expand</span>
+            </button>
+            <div class="ai-toolbar-menu-wrapper" id="ai-translate-wrapper">
+              <button type="button" class="ai-chip ai-chip--menu" data-ai-menu-toggle="translate" aria-haspopup="menu" aria-expanded="false" title="Translate the content">
+                ${icon("languages")}<span>Translate</span>
+                <svg class="ai-chip-caret" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <div class="ai-toolbar-menu" id="ai-translate-menu" role="menu" hidden>
+                <button type="button" class="ai-toolbar-menu-item" data-ai-action="translate-en" role="menuitem">English</button>
+                <button type="button" class="ai-toolbar-menu-item" data-ai-action="translate-vi" role="menuitem">Vietnamese</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="form-group">

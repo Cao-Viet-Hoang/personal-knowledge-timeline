@@ -6,7 +6,7 @@
 import { $, on } from "../utils/dom.js";
 import { icon } from "../utils/icons.js";
 
-let activeModal = null;
+const _modalStack = [];
 
 export function openModal(id) {
   const backdrop = $(`#${id}-backdrop`);
@@ -16,7 +16,9 @@ export function openModal(id) {
   backdrop.classList.add("open");
   modal.classList.add("open");
   document.body.style.overflow = "hidden";
-  activeModal = id;
+  const idx = _modalStack.indexOf(id);
+  if (idx !== -1) _modalStack.splice(idx, 1);
+  _modalStack.push(id);
 }
 
 export function closeModal(id) {
@@ -26,16 +28,20 @@ export function closeModal(id) {
 
   backdrop.classList.remove("open");
   modal.classList.remove("open");
-  document.body.style.overflow = "";
-  activeModal = null;
+  const idx = _modalStack.indexOf(id);
+  if (idx !== -1) _modalStack.splice(idx, 1);
+  if (_modalStack.length === 0) {
+    document.body.style.overflow = "";
+  }
 }
 
 export function closeActiveModal() {
-  if (activeModal) closeModal(activeModal);
+  const top = _modalStack[_modalStack.length - 1];
+  if (top) closeModal(top);
 }
 
 export function createModalShell(id, title, { size = "", footerHtml = "" } = {}) {
-  const sizeClass = size === "lg" ? "modal--lg" : "";
+  const sizeClass = size === "lg" ? "modal--lg" : size === "sm" ? "modal--sm" : "";
 
   return `
     <div id="${id}-backdrop" class="modal-backdrop"></div>

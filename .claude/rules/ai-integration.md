@@ -72,7 +72,7 @@ Store-side API (`store.js`):
 ## Feature Rules
 
 1. **Zero-dependency rule still applies** — no SDKs, no npm packages. Only browser-native `fetch`, `Uint8Array`, `btoa`/`atob`.
-2. **Preserve user language** — the system prompt in `ai-actions.js` instructs the model to answer in the same language as the source entry (Vietnamese/English). Do not hard-code English in prompts.
+2. **All prompts and generated output are English** — system prompts and user-turn prompts in `ai-actions.js` MUST be written in English, and the model MUST reply in English regardless of the source entry's language. The only exception is `translateText(text, targetLang)`, which honors the explicit target language chosen by the user (English or Vietnamese). Do not add "preserve the user's language" or "reply in the same language" clauses to any other action — if the user wants a Vietnamese output, they trigger the Translate → Vietnamese action explicitly.
 3. **Never call the endpoint from a component** — go through `ai-actions.js` or `ai-search.js`.
 4. **Guard async races** — views with free-text input (Search, Ask) must use a monotonic token (`searchToken++`) to ignore stale results.
 5. **Hybrid scoring** — default when AI is configured: 60% semantic + 40% keyword. Fall back to pure keyword if semantic or hybrid throws.

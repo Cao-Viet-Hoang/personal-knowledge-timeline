@@ -35,7 +35,7 @@ js/
   components/               ← View components (render functions)
     sidebar.js, timeline.js, entry-card.js, entry-detail.js,
     entry-form.js, search.js, filters.js, review.js,
-    modal.js, firebase-modal.js,
+    modal.js, confirm-modal.js, firebase-modal.js,
     ai-settings-modal.js, ask-view.js, digest-view.js,
     chat-entry-modal.js
   ai/                       ← Browser-side AI layer (OpenAI-compatible)

@@ -12,7 +12,7 @@ import { chatCompletion, chatJson } from "./ai-client.js";
 
 const SYSTEM_PROMPT =
   "You are an assistant embedded in a personal knowledge timeline app. " +
-  "Answer concisely, preserve the user's original language (Vietnamese or English), " +
+  "Answer concisely, always respond in English regardless of the input language, " +
   "and never invent information.";
 
 function sys(extra = "") {
@@ -48,7 +48,7 @@ export async function enrichEntry(entry) {
   const prompt = `Analyze this knowledge entry and respond with JSON:\n\n${ctx}\n\n` +
     `Return a JSON object with these keys:\n` +
     `- "tags": array of 3-6 lowercase, single-word (or hyphenated) topical tags\n` +
-    `- "summary": 1-2 sentence summary in the same language as the content\n` +
+    `- "summary": 1-2 sentence summary in English\n` +
     `- "suggestedType": one of "link" | "note" | "thought" | "quote"\n` +
     `- "suggestedTitle": a concise title (only if the current title is empty or a raw URL)\n`;
 
@@ -93,7 +93,7 @@ export async function generateSummary(entry) {
   const ctx = entryAsContext(entry);
   return (await chatCompletion(
     [
-      sys("Reply in the same language as the entry."),
+      sys("Reply in English."),
       user(`Summarize this entry in 1-2 sentences:\n\n${ctx}`),
     ],
     { temperature: 0.3, maxTokens: 200 }
@@ -104,7 +104,7 @@ export async function generateSummary(entry) {
 export async function expandContent(text, { tone = "neutral" } = {}) {
   return (await chatCompletion(
     [
-      sys("Expand without inventing facts. Preserve the user's language."),
+      sys("Expand without inventing facts. Reply in English."),
       user(`Expand this short note into a clearer paragraph (${tone} tone):\n\n${text}`),
     ],
     { temperature: 0.5 }
@@ -149,7 +149,7 @@ export async function generateDigest(entries, { period = "week" } = {}) {
       user(
         `Write a ${period}ly digest from these ${entries.length} entries. ` +
         `Group by theme, highlight 3-5 key insights, end with 1 question for reflection. ` +
-        `Use bullet points. Preserve the user's language.\n\n${compact}`
+        `Use bullet points. Reply in English.\n\n${compact}`
       ),
     ],
     { temperature: 0.5 }
@@ -164,7 +164,7 @@ export async function synthesizeEntries(entries, { goal = "a cohesive summary" }
   return (await chatCompletion(
     [
       sys(""),
-      user(`Combine these entries into ${goal}. Keep the user's language.\n\n${compact}`),
+      user(`Combine these entries into ${goal}. Reply in English.\n\n${compact}`),
     ],
     { temperature: 0.5 }
   )).trim();
@@ -192,7 +192,7 @@ export async function generateReflectionPrompt(entries) {
   const compact = entries.slice(0, 20).map((e) => `- ${e.title}`).join("\n");
   return (await chatCompletion(
     [
-      sys("Ask a single open-ended reflection question in the user's language."),
+      sys("Ask a single open-ended reflection question in English."),
       user(`Given these recent entries, ask a thoughtful reflection question:\n\n${compact}`),
     ],
     { temperature: 0.7, maxTokens: 120 }
