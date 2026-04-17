@@ -1,0 +1,37 @@
+/* ============================================
+   Search Results View
+   ============================================ */
+
+.search-page-header {
+  margin-bottom: var(--space-6);
+}
+
+.search-page-input {
+  margin-bottom: var(--space-4);
+}
+
+.search-results-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.search-results-count {
+  font-size: var(--text-sm);
+  color: hsl(var(--muted-foreground));
+}
+
+.search-results-count strong {
+  color: hsl(var(--foreground));
+  font-weight: var(--font-semibold);
+}
+
+/* ---- Search result highlight ---- */
+
+.search-highlight {
+  background: hsl(45 100% 80%);
+  color: hsl(var(--foreground));
+  padding: 0 2px;
+  border-radius: 2px;
+}

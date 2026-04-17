@@ -1,0 +1,210 @@
+/* ============================================
+   Review / Resurface View
+   ============================================ */
+
+.review-page {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.review-header {
+  text-align: center;
+  margin-bottom: var(--space-8);
+}
+
+.review-header-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto var(--space-3);
+  color: hsl(var(--primary));
+}
+
+.review-header h2 {
+  margin-bottom: var(--space-2);
+}
+
+.review-header p {
+  font-size: var(--text-sm);
+  color: hsl(var(--muted-foreground));
+}
+
+/* ---- Review card (large, focused) ---- */
+
+.review-card {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  margin-bottom: var(--space-6);
+}
+
+.review-card-accent {
+  height: 4px;
+  width: 100%;
+}
+
+.review-card-accent--link { background: hsl(var(--color-link)); }
+.review-card-accent--note { background: hsl(var(--color-note)); }
+.review-card-accent--thought { background: hsl(var(--color-thought)); }
+.review-card-accent--quote { background: hsl(var(--color-quote)); }
+
+.review-card-body {
+  padding: var(--space-6);
+}
+
+.review-card-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.review-card-date {
+  font-size: var(--text-xs);
+  color: hsl(var(--muted-foreground));
+}
+
+.review-card-title {
+  font-size: var(--text-xl);
+  font-weight: var(--font-bold);
+  color: hsl(var(--foreground));
+  margin-bottom: var(--space-3);
+  letter-spacing: -0.025em;
+}
+
+.review-card-excerpt {
+  font-size: var(--text-sm);
+  color: hsl(var(--muted-foreground));
+  line-height: var(--leading-relaxed);
+  margin-bottom: var(--space-4);
+}
+
+.review-card-note {
+  font-size: var(--text-sm);
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted));
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  border-left: 3px solid hsl(var(--primary));
+  line-height: var(--leading-relaxed);
+  margin-bottom: var(--space-4);
+}
+
+.review-card-tags {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.review-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid hsl(var(--border));
+  background: hsl(var(--muted) / 0.3);
+}
+
+.review-card-source {
+  font-size: var(--text-xs);
+  color: hsl(var(--muted-foreground));
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.review-card-source a {
+  font-size: var(--text-xs);
+}
+
+/* ---- Review actions ---- */
+
+.review-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+/* ---- Review progress ---- */
+
+.review-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.review-progress-text {
+  font-size: var(--text-sm);
+  color: hsl(var(--muted-foreground));
+}
+
+.review-progress-bar {
+  flex: 1;
+  max-width: 200px;
+  height: 4px;
+  background: hsl(var(--muted));
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.review-progress-fill {
+  height: 100%;
+  background: hsl(var(--primary));
+  border-radius: var(--radius-full);
+  transition: width var(--transition-slow);
+}
+
+/* ---- Daily reflection ---- */
+
+.reflection-card {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  margin-bottom: var(--space-6);
+  box-shadow: var(--shadow-xs);
+}
+
+.reflection-prompt {
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: hsl(var(--foreground));
+  margin-bottom: var(--space-3);
+  line-height: var(--leading-relaxed);
+}
+
+.reflection-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: var(--space-3);
+  background: hsl(var(--muted));
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: hsl(var(--foreground));
+  resize: vertical;
+  transition: all var(--transition-fast);
+}
+
+.reflection-textarea:focus {
+  outline: none;
+  background: hsl(var(--background));
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.1);
+}
+
+.reflection-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-3);
+}
+
+.reflection-date {
+  font-size: var(--text-xs);
+  color: hsl(var(--muted-foreground));
+}

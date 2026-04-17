@@ -1,0 +1,145 @@
+/* ============================================
+   Entry Form Styles
+   ============================================ */
+
+.entry-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.entry-form .form-row {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.entry-form .form-row > .form-group {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+/* ---- Type selector in form ---- */
+
+.type-selector {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.type-selector-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: hsl(var(--muted-foreground));
+  background: transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex: 1;
+  justify-content: center;
+}
+
+.type-selector-btn:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.type-selector-btn.active {
+  border-color: hsl(var(--ring));
+  color: hsl(var(--foreground));
+  background: hsl(var(--accent));
+}
+
+.type-selector-btn .type-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+}
+
+.type-dot--link { background: hsl(var(--color-link)); }
+.type-dot--note { background: hsl(var(--color-note)); }
+.type-dot--thought { background: hsl(var(--color-thought)); }
+.type-dot--quote { background: hsl(var(--color-quote)); }
+
+/* ---- Tag input ---- */
+
+.tag-input-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid hsl(var(--input));
+  border-radius: var(--radius-md);
+  min-height: 36px;
+  align-items: center;
+  cursor: text;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.tag-input-wrapper:focus-within {
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.1);
+}
+
+.tag-input-wrapper .tag {
+  animation: fadeIn var(--transition-fast);
+}
+
+.tag-input-field {
+  flex: 1;
+  min-width: 100px;
+  border: none;
+  outline: none;
+  font-size: var(--text-sm);
+  background: transparent;
+  color: hsl(var(--foreground));
+  padding: 0;
+  height: 24px;
+}
+
+.tag-input-field::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
+/* ---- Form hint ---- */
+
+.form-hint {
+  font-size: var(--text-xs);
+  color: hsl(var(--muted-foreground));
+  margin-top: var(--space-1);
+}
+
+/* ---- Animations ---- */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn var(--transition-base) ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp var(--transition-base) ease-out;
+}
