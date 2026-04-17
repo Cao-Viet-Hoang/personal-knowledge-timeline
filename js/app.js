@@ -1395,6 +1395,11 @@ let _currentAdapter = null;
  * Credentials are kept in localStorage so the modal is pre-filled.
  */
 async function handleFirebaseDisconnect() {
+  // Preserve credentials so the modal is pre-filled after reload
+  const lastCred = getSavedCredentials();
+  if (lastCred) {
+    sessionStorage.setItem("pkt_last_firebase_cred", JSON.stringify(lastCred));
+  }
   clearCredentials();
   // Reload the page to reset Firebase state and show the modal
   window.location.reload();
@@ -1406,7 +1411,19 @@ async function handleFirebaseDisconnect() {
  */
 function showFirebaseSetup() {
   return new Promise((resolve) => {
-    const savedCred = getSavedCredentials();
+    // Check persisted creds first, fall back to session creds from disconnect
+    let savedCred = getSavedCredentials();
+    let fromDisconnect = false;
+    if (!savedCred) {
+      try {
+        const raw = sessionStorage.getItem("pkt_last_firebase_cred");
+        if (raw) {
+          savedCred = JSON.parse(raw);
+          fromDisconnect = true;
+        }
+      } catch { /* ignore */ }
+      sessionStorage.removeItem("pkt_last_firebase_cred");
+    }
     const container = document.getElementById("modals");
     container.insertAdjacentHTML("beforeend", renderFirebaseModal(savedCred));
 
@@ -1439,8 +1456,8 @@ function showFirebaseSetup() {
       });
     }
 
-    // If credentials are already saved, auto-try
-    if (savedCred && validateCredentials(savedCred).valid) {
+    // If credentials are already saved (not from disconnect), auto-try
+    if (savedCred && !fromDisconnect && validateCredentials(savedCred).valid) {
       (async () => {
         try {
           await initFirebase(savedCred);
