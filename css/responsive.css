@@ -201,8 +201,10 @@
     max-height: 90vh;
   }
 
-  .modal--lg {
+  .modal--lg,
+  .modal--xl {
     max-width: 95%;
+    max-height: 90vh;
   }
 
   .modal-header {

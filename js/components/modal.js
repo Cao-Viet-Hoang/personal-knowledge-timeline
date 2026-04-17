@@ -41,7 +41,10 @@ export function closeActiveModal() {
 }
 
 export function createModalShell(id, title, { size = "", footerHtml = "" } = {}) {
-  const sizeClass = size === "lg" ? "modal--lg" : size === "sm" ? "modal--sm" : "";
+  const sizeClass =
+    size === "xl" ? "modal--xl" :
+    size === "lg" ? "modal--lg" :
+    size === "sm" ? "modal--sm" : "";
 
   return `
     <div id="${id}-backdrop" class="modal-backdrop"></div>

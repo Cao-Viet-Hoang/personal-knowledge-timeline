@@ -195,7 +195,7 @@ const firebaseAdapter = {
       const metaSnap = await _firestore.collection(META_COL).doc(META_DOC).get();
       const meta = metaSnap.exists
         ? metaSnap.data()
-        : { version: 1, lastEntryId: 0, lastReflectionId: 0 };
+        : {};
 
       // Return null if completely empty (triggers seed or empty store)
       const hasData = Object.keys(entries).length > 0 || metaSnap.exists;

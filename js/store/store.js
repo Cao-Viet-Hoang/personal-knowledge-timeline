@@ -17,7 +17,7 @@ import config from "../config.js";
 let _db = {
   entries: {},      // { [id]: EntryDoc }
   reflections: {},  // { [date]: ReflectionDoc }
-  meta: { version: 1 },
+  meta: {},
 };
 
 /**
@@ -201,7 +201,6 @@ function normalizeEntry(entry) {
     images: entry.images || [],
     createdAt: entry.createdAt || now(),
     updatedAt: entry.updatedAt || now(),
-    readAt: entry.readAt ?? null,
     starred: entry.starred ?? false,
     status: entry.status || "inbox",
     relatedEntryIds: entry.relatedEntryIds || [],
@@ -247,7 +246,6 @@ export function createEntry(data) {
     images: data.images || [],
     createdAt: timestamp,
     updatedAt: timestamp,
-    readAt: null,
     starred: data.starred ?? false,
     status: data.status || "inbox",
     relatedEntryIds: data.relatedEntryIds || [],
@@ -580,19 +578,11 @@ export function getReflection(date) {
 /** Save or update a daily reflection. */
 export function saveReflection(date, content) {
   const existing = _db.reflections[date];
-  const timestamp = now();
 
   if (existing) {
     existing.content = content;
-    existing.updatedAt = timestamp;
   } else {
-    _db.reflections[date] = {
-      id: generateId(),
-      date,
-      content,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    };
+    _db.reflections[date] = { date, content };
   }
 
   persistReflection(date);

@@ -157,11 +157,6 @@ export function renderEntryDetail(entry) {
         ${icon("calendar")}
         Created ${formatDate(entry.createdAt)} at ${formatTime(entry.createdAt)}
       </span>
-      ${
-        entry.readAt
-          ? `<span class="detail-meta-item">Read ${formatRelative(entry.readAt)}</span>`
-          : ""
-      }
     </div>
 
     <hr class="separator" />

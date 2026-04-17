@@ -103,7 +103,12 @@ export function renderEntryForm(entry = null) {
         </div>
       </div>
 
-      <div class="form-group">
+      <div class="form-group" id="form-title-group">
+        <label class="label" for="entry-title">Title <span style="color: hsl(var(--destructive))">*</span></label>
+        <input type="text" id="entry-title" name="title" class="input" placeholder="Entry title..." value="${esc(title)}" required />
+      </div>
+
+      <div class="form-group" id="form-type-group">
         <label class="label">Type</label>
         <div class="type-selector">
           <button type="button" class="type-selector-btn ${type === "link" ? "active" : ""}" data-form-type="link">
@@ -121,17 +126,12 @@ export function renderEntryForm(entry = null) {
         </div>
       </div>
 
-      <div class="form-group">
-        <label class="label" for="entry-title">Title <span style="color: hsl(var(--destructive))">*</span></label>
-        <input type="text" id="entry-title" name="title" class="input" placeholder="Entry title..." value="${esc(title)}" required />
-      </div>
-
       <div class="form-group" id="form-source-group">
         <label class="label" for="entry-source">Source URL</label>
         <input type="url" id="entry-source" name="sourceUrl" class="input" placeholder="https://..." value="${esc(sourceUrl)}" />
       </div>
 
-      <div class="form-group">
+      <div class="form-group" id="form-images-group">
         <label class="label">Images</label>
         <div class="image-upload-controls">
           <div class="image-profile-toggle" id="image-profile-toggle">
@@ -176,7 +176,7 @@ export function renderEntryForm(entry = null) {
         <span class="form-hint">Your personal thoughts about this entry</span>
       </div>
 
-      <div class="form-group">
+      <div class="form-group" id="form-tags-group">
         <label class="label">Tags</label>
         <div class="tag-input-wrapper" id="tag-input-wrapper">
           ${tagsHtml}
@@ -190,7 +190,7 @@ export function renderEntryForm(entry = null) {
         <span class="form-hint">Press Enter or comma to add a tag</span>
       </div>
 
-      <div class="form-group">
+      <div class="form-group" id="form-related-group">
         <label class="label">Related Entries</label>
         <div class="related-search-wrapper" id="related-search-wrapper">
           <input
@@ -220,7 +220,7 @@ export function renderEntryForm(entry = null) {
         </ul>
       </div>
 
-      <div class="form-row">
+      <div class="form-row" id="form-status-row">
         <div class="form-group">
           <label class="label" for="entry-status">Status</label>
           <select id="entry-status" name="status" class="select">

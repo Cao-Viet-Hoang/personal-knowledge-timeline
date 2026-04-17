@@ -986,7 +986,7 @@ function createModals() {
   modalsContainer.innerHTML = `
     ${createModalShell("entry-detail-modal", "Entry Detail", { size: "lg" })}
     ${createModalShell("entry-form-modal", "New Entry", {
-      size: "lg",
+      size: "xl",
       footerHtml: getEntryFormFooter(false),
     })}
     ${createModalShell("confirm-modal", "Confirm", {

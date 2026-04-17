@@ -150,7 +150,7 @@ const localAdapter = {
       return {
         entries,
         reflections,
-        meta: meta || { version: 1, lastEntryId: 0, lastReflectionId: 0 },
+        meta: meta || {},
       };
     } catch (err) {
       console.error("[LocalAdapter] load failed:", err);

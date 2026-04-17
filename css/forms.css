@@ -18,6 +18,51 @@
   margin-bottom: 0;
 }
 
+/* ---- Desktop 2-column layout ----
+   Activates when the modal has enough horizontal room (HD and up).
+   Pairs compact metadata fields to cut vertical scroll. */
+
+@media (min-width: 960px) {
+  .modal--xl .entry-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: var(--space-5);
+    row-gap: var(--space-4);
+    align-items: start;
+  }
+
+  .modal--xl .entry-form .form-group {
+    margin-bottom: 0;
+  }
+
+  /* Full-width bands — anything spanning both columns */
+  .modal--xl .entry-form > .ai-toolbar,
+  .modal--xl .entry-form > #form-title-group,
+  .modal--xl .entry-form > #form-images-group,
+  .modal--xl .entry-form > #form-excerpt-group,
+  .modal--xl .entry-form > #form-content-group,
+  .modal--xl .entry-form > #form-note-group,
+  .modal--xl .entry-form > #form-summary-group,
+  .modal--xl .entry-form > #form-actions-group,
+  .modal--xl .entry-form > #duplicate-warning-group {
+    grid-column: 1 / -1;
+  }
+
+  /* Status sits on its own line but narrow (left col only) */
+  .modal--xl .entry-form > #form-status-row {
+    grid-column: 1 / 2;
+  }
+
+  .modal--xl .entry-form > #form-status-row > .form-group {
+    margin-bottom: 0;
+  }
+
+  /* Tighter textareas on desktop — horizontal room compensates */
+  .modal--xl .entry-form .textarea {
+    min-height: 64px;
+  }
+}
+
 /* ---- Type selector in form ---- */
 
 .type-selector {

@@ -18,11 +18,13 @@ Components (read) ──→ store.js (CRUD, filter, search) ──→ adapter (p
 ## Rules
 
 ### 1. Store is the Single Source of Truth
+
 - All data lives in the private `_db` object inside `store.js`
 - Components NEVER hold their own data — they read from the store
 - Do not import `_db` directly — use exported functions (`getEntry`, `getAllEntries`, `filterEntries`)
 
 ### 2. Mutations Go Through Store Functions
+
 ```js
 // Correct — use store functions
 import { createEntry, updateEntry, deleteEntry } from "./store/store.js";
@@ -33,7 +35,9 @@ _db.entries[id] = { ... };
 ```
 
 ### 3. Always Emit Events After Mutations
+
 Every store function that modifies data must:
+
 1. Update `_db`
 2. Call the appropriate incremental persist function (`persistEntry`, `persistMeta`, etc.)
 3. Emit the specific event (`ENTRY_CREATED`, `ENTRY_UPDATED`, `ENTRY_DELETED`)
@@ -52,25 +56,27 @@ export function myMutation(id, data) {
 ```
 
 ### 4. Adapter Interface
+
 Adapters must implement these methods:
+
 ```js
 {
-  load()                          // → Promise<{ entries, reflections, meta }> | null
-  persist(db)                     // → Promise<void> (write full snapshot — store.js uses this)
-  persistEntry(id, entry)         // → Promise<void> (write single entry)
-  deleteEntry(id)                 // → Promise<void> (delete single entry)
-  persistReflection(date, ref)    // → Promise<void> (write single reflection)
-  deleteReflection(date)          // → Promise<void> (delete single reflection)
-  persistMeta(meta)               // → Promise<void> (write meta)
-  persistAll(db)                  // → Promise<void> (bulk write for seed/migration)
-  clear()                         // → Promise<void> (wipe storage)
+  load(); // → Promise<{ entries, reflections, meta }> | null
+  persist(db); // → Promise<void> (write full snapshot — store.js uses this)
+  persistEntry(id, entry); // → Promise<void> (write single entry)
+  deleteEntry(id); // → Promise<void> (delete single entry)
+  persistReflection(date, ref); // → Promise<void> (write single reflection)
+  deleteReflection(date); // → Promise<void> (delete single reflection)
+  persistMeta(meta); // → Promise<void> (write meta)
+  persistAll(db); // → Promise<void> (bulk write for seed/migration)
+  clear(); // → Promise<void> (wipe storage)
 
   // Embeddings — stored separately so vectors do not bloat the main snapshot
   // and do not hit the 1 MiB Firestore doc limit
-  loadEmbeddings()                // → Promise<{ [entryId]: base64 }>
-  persistEmbedding(id, base64)    // → Promise<void>
-  deleteEmbedding(id)             // → Promise<void>
-  clearEmbeddings()               // → Promise<void>
+  loadEmbeddings(); // → Promise<{ [entryId]: base64 }>
+  persistEmbedding(id, base64); // → Promise<void>
+  deleteEmbedding(id); // → Promise<void>
+  clearEmbeddings(); // → Promise<void>
 }
 ```
 
@@ -81,6 +87,7 @@ Do not add adapter-specific logic to `store.js`. If an adapter needs special beh
 **FirebaseAdapter** uses Firestore sub-collections (`entries/{id}`, `reflections/{date}`, `meta/config`). Auto-migrates from legacy single-doc format (`pkt/store`) on first load.
 
 ### 5. Event Bus Usage
+
 ```js
 import { emit, listen, Events } from "./store/event-bus.js";
 
@@ -93,12 +100,15 @@ listen(Events.ENTRIES_CHANGED, () => render());
 ```
 
 Available events:
+
 - `ENTRY_CREATED`, `ENTRY_UPDATED`, `ENTRY_DELETED`
 - `ENTRIES_CHANGED` (general — fired after any entry mutation)
 - `REFLECTIONS_CHANGED`
 
 ### 6. Adding New Store Functions
+
 When adding new data operations:
+
 1. Add the function to `store.js` with JSDoc
 2. Export it explicitly (named export, not default)
 3. Follow the persist + emit pattern
@@ -106,21 +116,25 @@ When adding new data operations:
 5. Never add side effects beyond persist and emit
 
 ### 7. Search and Filter
+
 - `filterEntries(criteria)` accepts: `type`, `status`, `starred`, `tag`, `dateFrom`, `dateTo`
 - `searchEntries(query)` does full-text search with weighted scoring
 - Both return sorted arrays (newest first / highest score first)
 - Adding a new filter criterion: add it to the `filterEntries` function, update the filter UI in `filters.js`
 
 ### 7a. Bulk Tag Operations
+
 - `mergeTags(canonical, aliases)` rewrites every entry that contains any alias: alias tags are removed, canonical is added (deduped), aliases equal to the canonical are ignored. Returns the count of modified entries. Emits `ENTRY_UPDATED` per modified entry plus a single trailing `ENTRIES_CHANGED`.
 - Use this whenever you replace a tag across the whole dataset (e.g. AI Settings → Suggest tag merges). Do not hand-roll a loop of `removeTag`/`addTag` calls — that produces one `ENTRIES_CHANGED` per swap and forces the timeline to re-render repeatedly.
 
 ### 8. ID Generation
-- Entries: `e_001`, `e_002`, ... via `nextEntryId()`
-- Reflections: `r_001`, `r_002`, ... via `nextReflectionId()`
-- Always use the generator functions — never construct IDs manually
+
+- Entries use `crypto.randomUUID()` via the internal `generateId()` function
+- Reflections are keyed by date string (`YYYY-MM-DD`) — no generated ID needed
+- The `meta` object is an empty container reserved for future use — no fields are required
 
 ### 9. Embedding Cache
+
 - Vectors live in a private `_embeddings` map keyed by entry id (base64 Float32).
 - Populated by `loadEmbeddings()` once per session; subsequent calls are no-ops.
 - Read via `getEmbedding(id)` / `embeddingCoverage()`; write via `setEmbedding(id, b64, modelName)`.

@@ -10,6 +10,7 @@ You are a code review agent for the Personal Knowledge Timeline (PKT) project. Y
 ## What You Check
 
 ### 1. Language and Naming
+
 - All variable names, function names, comments, and strings are in **English**
 - Variables use `camelCase`
 - Constants use `UPPER_SNAKE_CASE`
@@ -19,7 +20,9 @@ You are a code review agent for the Personal Knowledge Timeline (PKT) project. Y
 - Functions are named with verbs: `render*`, `handle*`, `get*`, `set*`, `create*`, `update*`, `delete*`
 
 ### 2. Component Pattern Compliance
+
 For files in `js/components/`:
+
 - Exports a single `render*` function
 - Uses `container.innerHTML` for rendering (not `appendChild` or DOM manipulation)
 - Accepts `(container, data, callbacks)` parameters
@@ -29,15 +32,18 @@ For files in `js/components/`:
 - Does NOT attach event listeners to dynamically created elements
 
 ### 3. Store Pattern Compliance
+
 For files in `js/store/`:
+
 - Mutations follow persist + emit pattern
 - Events are emitted after every data change
 - No side effects beyond persist and emit
-- ID generation uses `nextEntryId()` / `nextReflectionId()`
+- ID generation uses `crypto.randomUUID()` via `generateId()`
 - Adapter interface is respected (load/persist/clear)
 - Store functions have JSDoc comments
 
 ### 4. Architecture Rules
+
 - No external dependencies (npm packages, CDN scripts except Firebase in prod)
 - No `var` declarations — only `const` and `let`
 - No class-based components
@@ -47,12 +53,14 @@ For files in `js/store/`:
 - No direct DOM queries in store files
 
 ### 5. Security
+
 - `esc()` used for all user input in HTML templates
 - No `eval()`, `new Function()`, or `document.write()`
 - URLs validated before use in `href` or `src`
 - Firebase credentials never hardcoded
 
 ### 6. Code Quality
+
 - No dead code or commented-out blocks
 - No `console.log` (only `console.error` with `[Module]` prefix for real errors)
 - Functions are focused (single responsibility)
