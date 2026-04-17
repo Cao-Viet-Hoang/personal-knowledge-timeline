@@ -108,21 +108,31 @@ export function renderEntryForm(entry = null) {
         <input type="text" id="entry-title" name="title" class="input" placeholder="Entry title..." value="${esc(title)}" required />
       </div>
 
-      <div class="form-group" id="form-type-group">
-        <label class="label">Type</label>
-        <div class="type-selector">
-          <button type="button" class="type-selector-btn ${type === "link" ? "active" : ""}" data-form-type="link">
-            <span class="type-dot type-dot--link"></span> Link
-          </button>
-          <button type="button" class="type-selector-btn ${type === "note" ? "active" : ""}" data-form-type="note">
-            <span class="type-dot type-dot--note"></span> Note
-          </button>
-          <button type="button" class="type-selector-btn ${type === "thought" ? "active" : ""}" data-form-type="thought">
-            <span class="type-dot type-dot--thought"></span> Thought
-          </button>
-          <button type="button" class="type-selector-btn ${type === "quote" ? "active" : ""}" data-form-type="quote">
-            <span class="type-dot type-dot--quote"></span> Quote
-          </button>
+      <div class="form-row" id="form-type-row">
+        <div class="form-group" id="form-type-group">
+          <label class="label">Type</label>
+          <div class="type-selector">
+            <button type="button" class="type-selector-btn ${type === "link" ? "active" : ""}" data-form-type="link">
+              <span class="type-dot type-dot--link"></span> Link
+            </button>
+            <button type="button" class="type-selector-btn ${type === "note" ? "active" : ""}" data-form-type="note">
+              <span class="type-dot type-dot--note"></span> Note
+            </button>
+            <button type="button" class="type-selector-btn ${type === "thought" ? "active" : ""}" data-form-type="thought">
+              <span class="type-dot type-dot--thought"></span> Thought
+            </button>
+            <button type="button" class="type-selector-btn ${type === "quote" ? "active" : ""}" data-form-type="quote">
+              <span class="type-dot type-dot--quote"></span> Quote
+            </button>
+          </div>
+        </div>
+        <div class="form-group" id="form-status-group">
+          <label class="label" for="entry-status">Status</label>
+          <select id="entry-status" name="status" class="select">
+            <option value="inbox" ${status === "inbox" ? "selected" : ""}>Inbox</option>
+            <option value="processed" ${status === "processed" ? "selected" : ""}>Processed</option>
+            <option value="archived" ${status === "archived" ? "selected" : ""}>Archived</option>
+          </select>
         </div>
       </div>
 
@@ -218,17 +228,6 @@ export function renderEntryForm(entry = null) {
         <ul class="ai-action-items" id="ai-action-items-list">
           ${existingActions.map((a) => `<li>${esc(a)}</li>`).join("")}
         </ul>
-      </div>
-
-      <div class="form-row" id="form-status-row">
-        <div class="form-group">
-          <label class="label" for="entry-status">Status</label>
-          <select id="entry-status" name="status" class="select">
-            <option value="inbox" ${status === "inbox" ? "selected" : ""}>Inbox</option>
-            <option value="processed" ${status === "processed" ? "selected" : ""}>Processed</option>
-            <option value="archived" ${status === "archived" ? "selected" : ""}>Archived</option>
-          </select>
-        </div>
       </div>
 
       <div class="form-group" id="duplicate-warning-group" hidden>

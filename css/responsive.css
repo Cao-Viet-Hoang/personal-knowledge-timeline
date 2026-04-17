@@ -221,6 +221,10 @@
 
   /* ── Forms ── */
 
+  .entry-form {
+    gap: var(--space-3);
+  }
+
   .entry-form .form-row {
     flex-direction: column;
     gap: var(--space-3);
@@ -232,6 +236,53 @@
 
   .type-selector-btn {
     flex: 0 0 calc(50% - var(--space-1));
+  }
+
+  /* Compact labels & form groups */
+  .entry-form .label {
+    margin-bottom: var(--space-1);
+  }
+
+  .entry-form .form-group {
+    margin-bottom: 0;
+  }
+
+  /* Reduce image upload area padding */
+  .image-upload-area {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  .image-upload-controls {
+    justify-content: flex-start;
+  }
+
+  .image-profile-toggle {
+    flex: 1;
+  }
+
+  .profile-btn {
+    flex: 1;
+    padding: var(--space-1) var(--space-2);
+  }
+
+  /* Entry form footer — allow wrap and full-width actions when space is tight */
+  #entry-form-modal .modal-footer {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .entry-form-footer-status {
+    max-width: 100%;
+    flex: 1 1 100%;
+    order: -1;
+    white-space: normal;
+  }
+
+  .entry-form-footer-actions {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--space-2);
   }
 
   /* ── Empty state ── */
