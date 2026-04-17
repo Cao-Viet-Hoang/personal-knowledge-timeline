@@ -56,6 +56,7 @@ Adapters must implement these methods:
 ```js
 {
   load()                          // → Promise<{ entries, reflections, meta }> | null
+  persist(db)                     // → Promise<void> (write full snapshot — store.js uses this)
   persistEntry(id, entry)         // → Promise<void> (write single entry)
   deleteEntry(id)                 // → Promise<void> (delete single entry)
   persistReflection(date, ref)    // → Promise<void> (write single reflection)
@@ -63,6 +64,13 @@ Adapters must implement these methods:
   persistMeta(meta)               // → Promise<void> (write meta)
   persistAll(db)                  // → Promise<void> (bulk write for seed/migration)
   clear()                         // → Promise<void> (wipe storage)
+
+  // Embeddings — stored separately so vectors do not bloat the main snapshot
+  // and do not hit the 1 MiB Firestore doc limit
+  loadEmbeddings()                // → Promise<{ [entryId]: base64 }>
+  persistEmbedding(id, base64)    // → Promise<void>
+  deleteEmbedding(id)             // → Promise<void>
+  clearEmbeddings()               // → Promise<void>
 }
 ```
 
@@ -107,3 +115,10 @@ When adding new data operations:
 - Entries: `e_001`, `e_002`, ... via `nextEntryId()`
 - Reflections: `r_001`, `r_002`, ... via `nextReflectionId()`
 - Always use the generator functions — never construct IDs manually
+
+### 9. Embedding Cache
+- Vectors live in a private `_embeddings` map keyed by entry id (base64 Float32).
+- Populated by `loadEmbeddings()` once per session; subsequent calls are no-ops.
+- Read via `getEmbedding(id)` / `embeddingCoverage()`; write via `setEmbedding(id, b64, modelName)`.
+- `deleteEntry` automatically removes the vector and calls `adapter.deleteEmbedding`.
+- Do not bundle vectors into the main snapshot — always go through the embedding-specific adapter methods.

@@ -1,12 +1,17 @@
 /**
  * Search view component.
- * Live search with debounce, renders results with matched-field indicators.
+ * Live search with debounce. Supports three modes:
+ *   - keyword:  existing full-text scoring via store.searchEntries
+ *   - semantic: embedding-based cosine similarity
+ *   - hybrid:   blends keyword + semantic scores
  */
 
 import { icon } from "../utils/icons.js";
 import { renderEntryCard } from "./entry-card.js";
 import { searchEntries } from "../store/store.js";
 import { on } from "../utils/dom.js";
+import { isAIConfigured } from "../ai/ai-config.js";
+import { semanticSearch, hybridSearch } from "../ai/ai-search.js";
 
 const SEARCH_PAGE_SIZE = 50;
 
@@ -16,7 +21,7 @@ function renderResults(results, query, displayCount) {
       <div class="empty-state">
         <div class="empty-state-icon">${icon("search", 48)}</div>
         <h3 class="empty-state-title">Search your knowledge</h3>
-        <p class="empty-state-description">Search across titles, content, excerpts, notes, tags, and domains.</p>
+        <p class="empty-state-description">Keyword, semantic, or hybrid search across all your entries.</p>
       </div>
     `;
   }
@@ -26,7 +31,7 @@ function renderResults(results, query, displayCount) {
       <div class="empty-state">
         <div class="empty-state-icon">${icon("search", 48)}</div>
         <h3 class="empty-state-title">No results found</h3>
-        <p class="empty-state-description">Try different keywords or check your spelling.</p>
+        <p class="empty-state-description">Try different keywords or switch search mode.</p>
       </div>
     `;
   }
@@ -55,10 +60,40 @@ function renderCount(results, query) {
   return `<span class="search-results-count"><strong>${results.length}</strong> result${results.length !== 1 ? "s" : ""} for &ldquo;${escapeHtml(query)}&rdquo;</span>`;
 }
 
+/** Run the configured search mode and return plain entry array. */
+async function runSearch(query, mode) {
+  if (!query.trim()) return [];
+  if (mode === "keyword" || !isAIConfigured()) {
+    return searchEntries(query);
+  }
+  if (mode === "semantic") {
+    try {
+      const hits = await semanticSearch(query, 100, 0.25);
+      return hits.map((h) => ({ ...h.entry, _score: h.score }));
+    } catch (err) {
+      console.error("[Search] Semantic failed, falling back to keyword:", err);
+      return searchEntries(query);
+    }
+  }
+  // hybrid (default when AI is configured)
+  try {
+    const keyword = searchEntries(query);
+    const blended = await hybridSearch(query, keyword, 100);
+    return blended.map((b) => ({ ...b.entry, _score: b.score }));
+  } catch (err) {
+    console.error("[Search] Hybrid failed, falling back to keyword:", err);
+    return searchEntries(query);
+  }
+}
+
 export function renderSearch(container, { onEntryClick, onStar, onEdit, initialQuery = "" }) {
-  const results = initialQuery ? searchEntries(initialQuery) : [];
-  let currentResults = results;
+  // Default mode: hybrid if AI configured, else keyword
+  let mode = isAIConfigured() ? "hybrid" : "keyword";
+  let currentResults = [];
   let displayCount = SEARCH_PAGE_SIZE;
+  let searchToken = 0; // guard against out-of-order async results
+
+  const aiEnabled = isAIConfigured();
 
   container.innerHTML = `
     <div class="search-page-header">
@@ -77,38 +112,71 @@ export function renderSearch(container, { onEntryClick, onStar, onEdit, initialQ
           <span class="search-shortcut">Ctrl+K</span>
         </div>
       </div>
-      <div class="search-results-meta" id="search-meta">${renderCount(results, initialQuery)}</div>
+
+      <div class="search-mode-toggle">
+        <button class="search-mode-btn ${mode === "keyword" ? "active" : ""}" data-search-mode="keyword">
+          ${icon("search", 14)} Keyword
+        </button>
+        <button class="search-mode-btn ${mode === "semantic" ? "active" : ""}" data-search-mode="semantic" ${aiEnabled ? "" : "disabled"}>
+          ${icon("sparkles", 14)} Semantic
+        </button>
+        <button class="search-mode-btn ${mode === "hybrid" ? "active" : ""}" data-search-mode="hybrid" ${aiEnabled ? "" : "disabled"}>
+          ${icon("wand", 14)} Hybrid
+        </button>
+      </div>
+
+      <div class="search-results-meta" id="search-meta"></div>
     </div>
-    <div id="search-results">${renderResults(results, initialQuery, displayCount)}</div>
+    <div id="search-results">${renderResults([], "", displayCount)}</div>
   `;
 
-  // ── Debounced live search ──
-  let timer = null;
   const input = container.querySelector("#search-page-input");
-  if (input) {
-    input.addEventListener("input", () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        const q = input.value.trim();
-        currentResults = searchEntries(q);
-        displayCount = SEARCH_PAGE_SIZE;
-        container.querySelector("#search-results").innerHTML = renderResults(currentResults, q, displayCount);
-        container.querySelector("#search-meta").innerHTML = renderCount(currentResults, q);
-      }, 150);
-    });
+  const resultsContainer = container.querySelector("#search-results");
+  const metaEl = container.querySelector("#search-meta");
 
-    // Focus the input after render
-    requestAnimationFrame(() => input.focus());
+  async function refresh() {
+    const q = input.value.trim();
+    if (!q) {
+      currentResults = [];
+      displayCount = SEARCH_PAGE_SIZE;
+      resultsContainer.innerHTML = renderResults([], "", displayCount);
+      metaEl.innerHTML = "";
+      return;
+    }
+
+    const myToken = ++searchToken;
+    metaEl.innerHTML = `<span class="search-loading">${icon("sparkles", 14)} Searching...</span>`;
+
+    const results = await runSearch(q, mode);
+    if (myToken !== searchToken) return; // newer search started
+
+    currentResults = results;
+    displayCount = SEARCH_PAGE_SIZE;
+    resultsContainer.innerHTML = renderResults(results, q, displayCount);
+    metaEl.innerHTML = renderCount(results, q);
   }
 
-  // ── Load more search results ──
-  on(container, "click", "#search-load-more", () => {
-    displayCount += SEARCH_PAGE_SIZE;
-    const q = input?.value?.trim() || initialQuery;
-    container.querySelector("#search-results").innerHTML = renderResults(currentResults, q, displayCount);
+  let timer = null;
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(refresh, 200);
   });
 
-  // ── Entry interactions inside search results ──
+  on(container, "click", "[data-search-mode]", (e, el) => {
+    if (el.disabled) return;
+    mode = el.dataset.searchMode;
+    container.querySelectorAll("[data-search-mode]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.searchMode === mode);
+    });
+    refresh();
+  });
+
+  on(container, "click", "#search-load-more", () => {
+    displayCount += SEARCH_PAGE_SIZE;
+    const q = input.value.trim() || initialQuery;
+    resultsContainer.innerHTML = renderResults(currentResults, q, displayCount);
+  });
+
   on(container, "click", ".ec", (e, el) => {
     if (e.target.closest("[data-action]")) return;
     if (e.target.closest(".tag")) return;
@@ -124,6 +192,9 @@ export function renderSearch(container, { onEntryClick, onStar, onEdit, initialQ
     e.stopPropagation();
     onEdit?.(el.dataset.entryId);
   });
+
+  requestAnimationFrame(() => input.focus());
+  if (initialQuery) refresh();
 }
 
 function escapeHtml(str) {

@@ -27,6 +27,7 @@ css/
   timeline.css              ← Timeline & entry cards
   search.css                ← Search page
   review.css                ← Review/reflection view
+  ai.css                    ← AI-feature UI (settings, ask, digest, chat, toolbar)
   responsive.css            ← Mobile breakpoints
 js/
   app.js                    ← Main entry, routing, event delegation
@@ -34,9 +35,18 @@ js/
   components/               ← View components (render functions)
     sidebar.js, timeline.js, entry-card.js, entry-detail.js,
     entry-form.js, search.js, filters.js, review.js,
-    modal.js, firebase-modal.js
+    modal.js, firebase-modal.js,
+    ai-settings-modal.js, ask-view.js, digest-view.js,
+    chat-entry-modal.js
+  ai/                       ← Browser-side AI layer (OpenAI-compatible)
+    ai-config.js            ← Endpoint/key/model config (localStorage)
+    ai-client.js            ← Low-level chat + embeddings HTTP calls
+    ai-actions.js           ← High-level features (enrich, translate, RAG, digest)
+    ai-search.js            ← Semantic / hybrid / similarity search
+    ai-index.js             ← Batch embedding jobs + per-entry index
+    embeddings.js           ← Vector math, base64 Float32 codec
   store/                    ← Data layer
-    store.js                ← CRUD, filter, search, reflections
+    store.js                ← CRUD, filter, search, reflections, embeddings
     event-bus.js            ← Pub/sub for state changes
     local-adapter.js        ← IndexedDB persistence (dev)
     firebase-adapter.js     ← Firestore sub-collection persistence (prod)

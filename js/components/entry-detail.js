@@ -123,6 +123,25 @@ export function renderEntryDetail(entry) {
   };
   const statusAction = statusActions[entry.status] || statusActions.inbox;
 
+  // AI summary & action items
+  const summaryHtml = entry.summary
+    ? `
+      <div class="detail-section">
+        <div class="detail-section-title">${icon("sparkles", 14)} AI Summary</div>
+        <div class="detail-note">${escapeHtml(entry.summary)}</div>
+      </div>
+    `
+    : "";
+
+  const actionsHtml = entry.aiActionItems && entry.aiActionItems.length
+    ? `
+      <div class="detail-section">
+        <div class="detail-section-title">Action Items</div>
+        <ul class="ai-action-items">${entry.aiActionItems.map((a) => `<li>${escapeHtml(a)}</li>`).join("")}</ul>
+      </div>
+    `
+    : "";
+
   return `
     <div class="detail-type-badge">
       <span class="badge badge-${entry.type}">${typeLabel}</span>
@@ -147,12 +166,24 @@ export function renderEntryDetail(entry) {
 
     <hr class="separator" />
 
+    ${summaryHtml}
     ${excerptHtml}
     ${contentHtml}
     ${noteHtml}
+    ${actionsHtml}
     ${imagesHtml}
     ${tagsHtml}
     ${relatedHtml}
+
+    <div class="detail-section" id="ai-related-section">
+      <div class="detail-section-title">
+        ${icon("sparkles", 14)} AI Related Entries
+        <button class="btn btn-ghost btn-sm" data-action="detail-ai-related" data-entry-id="${entry.id}" style="margin-left: auto">
+          ${icon("refresh", 14)} Find similar
+        </button>
+      </div>
+      <div id="ai-related-list" class="related-entries"></div>
+    </div>
 
     <hr class="separator" />
 
@@ -162,6 +193,9 @@ export function renderEntryDetail(entry) {
       </button>
       <button class="btn btn-outline btn-sm" data-action="detail-edit" data-entry-id="${entry.id}">
         ${icon("edit")} Edit
+      </button>
+      <button class="btn btn-outline btn-sm" data-action="detail-chat" data-entry-id="${entry.id}">
+        ${icon("messageSquare", 14)} Chat
       </button>
       <button class="btn btn-ghost btn-sm" data-action="detail-status" data-entry-id="${entry.id}" data-next-status="${statusAction.nextStatus}">
         ${statusAction.icon} ${statusAction.label}

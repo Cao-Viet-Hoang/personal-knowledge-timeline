@@ -7,7 +7,7 @@
  * IndexedDB structure:
  *   Database: "pkt_db"
  *   Object stores:
- *     - "entries"      — keyed by entry id (e.g. "e_001")
+ *     - "entries"      — keyed by entry id (UUID)
  *     - "reflections"  — keyed by date string (e.g. "2025-01-15")
  *     - "meta"         — single record with key "config"
  */
@@ -15,7 +15,7 @@
 import config from "../config.js";
 
 const DB_NAME = "pkt_db";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const LEGACY_KEY = config.storageKey;
 
 let _idb = null;
@@ -33,6 +33,9 @@ function openDB() {
       }
       if (!db.objectStoreNames.contains("meta")) {
         db.createObjectStore("meta");
+      }
+      if (!db.objectStoreNames.contains("embeddings")) {
+        db.createObjectStore("embeddings");
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -217,14 +220,63 @@ const localAdapter = {
     }
   },
 
+  // Alias: store.js calls adapter.persist(snapshot) as the unified
+  // "save the whole thing" path. FirebaseAdapter implements this
+  // directly; for IndexedDB we delegate to persistAll.
+  async persist(db) {
+    return this.persistAll(db);
+  },
+
   async clear() {
     try {
       const db = await getDB();
       await idbClear(db, "entries");
       await idbClear(db, "reflections");
       await idbClear(db, "meta");
+      await idbClear(db, "embeddings");
     } catch (err) {
       console.error("[LocalAdapter] clear failed:", err);
+    }
+  },
+
+  // ── Embedding storage ──
+  // Vectors live in a separate object store so the main "persist" path
+  // stays small and fast regardless of how many vectors are cached.
+
+  async loadEmbeddings() {
+    try {
+      const db = await getDB();
+      return await idbGetAll(db, "embeddings");
+    } catch (err) {
+      console.error("[LocalAdapter] loadEmbeddings failed:", err);
+      return {};
+    }
+  },
+
+  async persistEmbedding(id, base64) {
+    try {
+      const db = await getDB();
+      await idbPut(db, "embeddings", id, base64);
+    } catch (err) {
+      console.error("[LocalAdapter] persistEmbedding failed:", err);
+    }
+  },
+
+  async deleteEmbedding(id) {
+    try {
+      const db = await getDB();
+      await idbDelete(db, "embeddings", id);
+    } catch (err) {
+      console.error("[LocalAdapter] deleteEmbedding failed:", err);
+    }
+  },
+
+  async clearEmbeddings() {
+    try {
+      const db = await getDB();
+      await idbClear(db, "embeddings");
+    } catch (err) {
+      console.error("[LocalAdapter] clearEmbeddings failed:", err);
     }
   },
 };

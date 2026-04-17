@@ -17,8 +17,16 @@ import config from "../config.js";
 let _db = {
   entries: {},      // { [id]: EntryDoc }
   reflections: {},  // { [date]: ReflectionDoc }
-  meta: { version: 1, lastEntryId: 0, lastReflectionId: 0 },
+  meta: { version: 1 },
 };
+
+/**
+ * Embedding cache — { [entryId]: base64Float32String }.
+ * Stored separately from entries to avoid bloating the main persist blob.
+ * Loaded lazily from the adapter on demand (e.g. first semantic search).
+ */
+let _embeddings = {};
+let _embeddingsLoaded = false;
 
 // ── Adapter interface ──────────────────────────────────
 //
@@ -34,20 +42,64 @@ export function setAdapter(adapter) {
 
 // ── Persistence helpers (delegate to adapter) ──────────
 
-/** Pending persist promise to prevent concurrent writes. */
-let _persistQueue = Promise.resolve();
+/**
+ * Persist a single entry to the adapter.
+ * Deep-clones before writing to prevent mutation during async ops.
+ */
+function persistEntry(id) {
+  if (!_adapter?.persistEntry) return;
+  const entry = _db.entries[id];
+  if (!entry) return;
+  const snapshot = JSON.parse(JSON.stringify(entry));
+  _adapter.persistEntry(id, snapshot).catch((err) =>
+    console.error("[Store] Failed to persist entry:", err)
+  );
+}
 
 /**
- * Persist _db to the adapter.
- * Deep-clones before writing to prevent mutation during async ops.
- * Queues writes sequentially to avoid race conditions with async adapters.
+ * Delete a single entry from the adapter.
  */
-function persist() {
-  if (!_adapter) return;
+function persistDeleteEntry(id) {
+  if (!_adapter?.deleteEntry) return;
+  _adapter.deleteEntry(id).catch((err) =>
+    console.error("[Store] Failed to delete entry:", err)
+  );
+}
+
+/**
+ * Persist meta to the adapter.
+ */
+function persistMeta() {
+  if (!_adapter?.persistMeta) return;
+  const snapshot = JSON.parse(JSON.stringify(_db.meta));
+  _adapter.persistMeta(snapshot).catch((err) =>
+    console.error("[Store] Failed to persist meta:", err)
+  );
+}
+
+/**
+ * Persist a single reflection to the adapter.
+ */
+function persistReflection(date) {
+  if (!_adapter?.persistReflection) return;
+  const ref = _db.reflections[date];
+  if (!ref) return;
+  const snapshot = JSON.parse(JSON.stringify(ref));
+  _adapter.persistReflection(date, snapshot).catch((err) =>
+    console.error("[Store] Failed to persist reflection:", err)
+  );
+}
+
+/**
+ * Persist the entire _db to the adapter (for seed loading / bulk operations).
+ */
+function persistAll() {
+  if (!_adapter?.persistAll && !_adapter?.persist) return;
   const snapshot = JSON.parse(JSON.stringify(_db));
-  _persistQueue = _persistQueue
-    .then(() => _adapter.persist(snapshot))
-    .catch((err) => console.error("[Store] Failed to persist:", err));
+  const fn = _adapter.persistAll || _adapter.persist;
+  fn.call(_adapter, snapshot).catch((err) =>
+    console.error("[Store] Failed to persist all:", err)
+  );
 }
 
 async function loadFromAdapter() {
@@ -76,7 +128,7 @@ async function loadSeed() {
     _db.reflections = seed.reflections || {};
     _db.meta = seed.meta || _db.meta;
     normalizeAllEntries();
-    persist();
+    persistAll();
   } catch (err) {
     console.error("[Store] Failed to load seed data:", err);
   }
@@ -89,7 +141,7 @@ export async function initStore() {
   if (!loaded) {
     if (config.isProd) {
       // Prod: start with empty store — never auto-seed with sample data
-      persist();
+      persistMeta();
     } else {
       await loadSeed();
     }
@@ -113,14 +165,8 @@ export async function resetStore() {
 
 // ── ID generation ──────────────────────────────────────
 
-function nextEntryId() {
-  _db.meta.lastEntryId += 1;
-  return `e_${String(_db.meta.lastEntryId).padStart(3, "0")}`;
-}
-
-function nextReflectionId() {
-  _db.meta.lastReflectionId += 1;
-  return `r_${String(_db.meta.lastReflectionId).padStart(3, "0")}`;
+function generateId() {
+  return crypto.randomUUID();
 }
 
 // ── Helpers ────────────────────────────────────────────
@@ -159,6 +205,11 @@ function normalizeEntry(entry) {
     starred: entry.starred ?? false,
     status: entry.status || "inbox",
     relatedEntryIds: entry.relatedEntryIds || [],
+    // AI-derived fields
+    summary: entry.summary || "",
+    aiActionItems: entry.aiActionItems || [],
+    embeddingModel: entry.embeddingModel || "",
+    embeddingUpdatedAt: entry.embeddingUpdatedAt || null,
   };
 }
 
@@ -180,7 +231,7 @@ function normalizeAllEntries() {
  * @returns {EntryDoc}
  */
 export function createEntry(data) {
-  const id = nextEntryId();
+  const id = data.id || generateId();
   const timestamp = now();
 
   const entry = {
@@ -200,10 +251,14 @@ export function createEntry(data) {
     starred: data.starred ?? false,
     status: data.status || "inbox",
     relatedEntryIds: data.relatedEntryIds || [],
+    summary: data.summary || "",
+    aiActionItems: data.aiActionItems || [],
+    embeddingModel: "",
+    embeddingUpdatedAt: null,
   };
 
   _db.entries[id] = entry;
-  persist();
+  persistEntry(id);
   emit(Events.ENTRY_CREATED, entry);
   emit(Events.ENTRIES_CHANGED);
   return entry;
@@ -225,7 +280,7 @@ export function updateEntry(id, changes) {
   }
 
   Object.assign(entry, changes, { updatedAt: now() });
-  persist();
+  persistEntry(id);
   emit(Events.ENTRY_UPDATED, entry);
   emit(Events.ENTRIES_CHANGED);
   return entry;
@@ -233,24 +288,32 @@ export function updateEntry(id, changes) {
 
 /**
  * Delete an entry by id.
- * Also removes this id from other entries' relatedEntryIds.
+ * Also removes this id from other entries' relatedEntryIds and drops
+ * any cached embedding.
  */
 export function deleteEntry(id) {
   if (!_db.entries[id]) return false;
 
   delete _db.entries[id];
+  delete _embeddings[id];
 
   // Clean up related references
+  const affectedIds = [];
   for (const entry of Object.values(_db.entries)) {
     const related = entry.relatedEntryIds || [];
     const idx = related.indexOf(id);
     if (idx !== -1) {
       related.splice(idx, 1);
       entry.relatedEntryIds = related;
+      affectedIds.push(entry.id);
     }
   }
 
-  persist();
+  persistDeleteEntry(id);
+  for (const affectedId of affectedIds) {
+    persistEntry(affectedId);
+  }
+  if (_adapter?.deleteEmbedding) _adapter.deleteEmbedding(id).catch(() => {});
   emit(Events.ENTRY_DELETED, { id });
   emit(Events.ENTRIES_CHANGED);
   return true;
@@ -275,7 +338,7 @@ export function toggleStar(id) {
   if (!entry) return null;
   entry.starred = !entry.starred;
   entry.updatedAt = now();
-  persist();
+  persistEntry(id);
   emit(Events.ENTRY_UPDATED, entry);
   emit(Events.ENTRIES_CHANGED);
   return entry;
@@ -286,7 +349,7 @@ export function setStatus(id, status) {
   if (!entry) return null;
   entry.status = status;
   entry.updatedAt = now();
-  persist();
+  persistEntry(id);
   emit(Events.ENTRY_UPDATED, entry);
   emit(Events.ENTRIES_CHANGED);
   return entry;
@@ -302,7 +365,7 @@ export function addTag(entryId, tag) {
   if (normalized && !entry.tags.includes(normalized)) {
     entry.tags.push(normalized);
     entry.updatedAt = now();
-    persist();
+    persistEntry(entryId);
     emit(Events.ENTRY_UPDATED, entry);
     emit(Events.ENTRIES_CHANGED);
   }
@@ -315,7 +378,7 @@ export function removeTag(entryId, tag) {
   if (!entry) return null;
   entry.tags = entry.tags.filter((t) => t !== tag);
   entry.updatedAt = now();
-  persist();
+  persistEntry(entryId);
   emit(Events.ENTRY_UPDATED, entry);
   emit(Events.ENTRIES_CHANGED);
   return entry;
@@ -343,7 +406,8 @@ export function linkEntries(idA, idB) {
 
   a.updatedAt = now();
   b.updatedAt = now();
-  persist();
+  persistEntry(idA);
+  persistEntry(idB);
   emit(Events.ENTRIES_CHANGED);
   return true;
 }
@@ -359,7 +423,8 @@ export function unlinkEntries(idA, idB) {
 
   a.updatedAt = now();
   b.updatedAt = now();
-  persist();
+  persistEntry(idA);
+  persistEntry(idB);
   emit(Events.ENTRIES_CHANGED);
   return true;
 }
@@ -482,7 +547,7 @@ export function saveReflection(date, content) {
     existing.updatedAt = timestamp;
   } else {
     _db.reflections[date] = {
-      id: nextReflectionId(),
+      id: generateId(),
       date,
       content,
       createdAt: timestamp,
@@ -490,7 +555,7 @@ export function saveReflection(date, content) {
     };
   }
 
-  persist();
+  persistReflection(date);
   emit(Events.REFLECTIONS_CHANGED);
   return _db.reflections[date];
 }
@@ -519,6 +584,89 @@ export function getStats() {
   }
 
   return { total: entries.length, inbox, starred, archived, processed };
+}
+
+// ── EMBEDDINGS ─────────────────────────────────────────
+
+/**
+ * Load all embeddings from the adapter into memory.
+ * Idempotent — subsequent calls are no-ops.
+ */
+export async function loadEmbeddings() {
+  if (_embeddingsLoaded) return;
+  if (_adapter?.loadEmbeddings) {
+    try {
+      _embeddings = (await _adapter.loadEmbeddings()) || {};
+    } catch (err) {
+      console.error("[Store] loadEmbeddings failed:", err);
+      _embeddings = {};
+    }
+  }
+  _embeddingsLoaded = true;
+}
+
+/** Get raw base64 embedding for an entry, or null. */
+export function getEmbedding(id) {
+  return _embeddings[id] || null;
+}
+
+/**
+ * Wipe the in-memory embedding cache.
+ * Use after adapter.clearEmbeddings() to keep memory in sync.
+ * Does NOT touch persistent storage.
+ */
+export function clearEmbeddingCache() {
+  _embeddings = {};
+  _embeddingsLoaded = true;
+}
+
+/** Whether every entry currently has a cached embedding. */
+export function embeddingCoverage() {
+  const ids = Object.keys(_db.entries);
+  const withVec = ids.filter((id) => _embeddings[id]).length;
+  return { total: ids.length, indexed: withVec };
+}
+
+/**
+ * Save an embedding for an entry. Persists via the adapter if available.
+ * @param {string} entryId
+ * @param {string} base64 — base64-encoded Float32Array
+ * @param {string} model — the embedding model name
+ */
+export function setEmbedding(entryId, base64, model) {
+  const entry = _db.entries[entryId];
+  if (!entry) return;
+  _embeddings[entryId] = base64;
+  entry.embeddingModel = model || "";
+  entry.embeddingUpdatedAt = now();
+  if (_adapter?.persistEmbedding) {
+    _adapter.persistEmbedding(entryId, base64).catch((err) =>
+      console.error("[Store] persistEmbedding failed:", err)
+    );
+  }
+  persistEntry(entryId);
+  emit(Events.ENTRY_UPDATED, entry);
+  emit(Events.ENTRIES_CHANGED);
+}
+
+/**
+ * Apply AI enrichment fields (summary, tags, actionItems) to an entry.
+ * Does NOT touch the embedding — use setEmbedding for that.
+ */
+export function applyEnrichment(entryId, { summary, tags, aiActionItems } = {}) {
+  const entry = _db.entries[entryId];
+  if (!entry) return null;
+  if (typeof summary === "string") entry.summary = summary;
+  if (Array.isArray(tags) && tags.length) {
+    const merged = new Set([...(entry.tags || []), ...tags.map((t) => String(t).toLowerCase())]);
+    entry.tags = [...merged];
+  }
+  if (Array.isArray(aiActionItems)) entry.aiActionItems = aiActionItems;
+  entry.updatedAt = now();
+  persistEntry(entryId);
+  emit(Events.ENTRY_UPDATED, entry);
+  emit(Events.ENTRIES_CHANGED);
+  return entry;
 }
 
 /** Group entries by date key (YYYY-MM-DD). Returns Map ordered newest-first. */

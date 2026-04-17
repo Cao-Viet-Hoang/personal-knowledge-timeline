@@ -74,6 +74,22 @@ export function renderSidebar(container, { onNavigate, activeView }) {
           Review
         </button>
       </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-section-label">AI</div>
+        <button class="sidebar-item ${activeView === "ask" ? "active" : ""}" data-view="ask">
+          <span class="sidebar-item-icon">${icon("sparkles", 18)}</span>
+          Ask
+        </button>
+        <button class="sidebar-item ${activeView === "digest" ? "active" : ""}" data-view="digest">
+          <span class="sidebar-item-icon">${icon("fileText", 18)}</span>
+          Digest
+        </button>
+        <button class="sidebar-item" data-action="open-ai-settings">
+          <span class="sidebar-item-icon">${icon("settings", 18)}</span>
+          AI Settings
+        </button>
+      </div>
     </nav>
 
     ${config.isProd ? `
@@ -93,4 +109,6 @@ export function renderSidebar(container, { onNavigate, activeView }) {
   on(container, "click", ".sidebar-item[data-view]", (e, el) => {
     onNavigate(el.dataset.view);
   });
+  // [data-action] handlers (open-ai-settings, firebase-disconnect) are
+  // wired via global event delegation in app.js — no action needed here.
 }

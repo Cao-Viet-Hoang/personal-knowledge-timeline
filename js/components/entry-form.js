@@ -49,10 +49,39 @@ export function renderEntryForm(entry = null) {
     )
     .join("");
 
+  const existingSummary = entry?.summary || "";
+  const existingActions = entry?.aiActionItems || [];
+
   return `
     <form class="entry-form" id="entry-form" novalidate>
       <input type="hidden" name="id" value="${entry?.id || ""}" />
       <input type="hidden" name="type" value="${type}" />
+
+      <div class="form-ai-toolbar">
+        <span class="form-ai-toolbar-label">${icon("sparkles", 14)} AI</span>
+        <button type="button" class="btn btn-ghost btn-sm" data-ai-action="parse-url" title="Fetch & analyze the source URL">
+          ${icon("globe")} Parse URL
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" data-ai-action="auto-title" title="Generate a title">
+          ${icon("wand")} Title
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" data-ai-action="auto-summary" title="Summarize content">
+          ${icon("wand")} Summary
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" data-ai-action="auto-tags" title="Suggest tags">
+          ${icon("tag")} Tags
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" data-ai-action="expand" title="Expand the content">
+          ${icon("wand")} Expand
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" data-ai-action="translate-en" title="Translate to English">
+          ${icon("languages")} EN
+        </button>
+        <button type="button" class="btn btn-ghost btn-sm" data-ai-action="translate-vi" title="Translate to Vietnamese">
+          ${icon("languages")} VI
+        </button>
+        <span id="form-ai-status" class="form-ai-status"></span>
+      </div>
 
       <div class="form-group">
         <label class="label">Type</label>
@@ -159,6 +188,18 @@ export function renderEntryForm(entry = null) {
         <span class="form-hint">Search by title to link related entries</span>
       </div>
 
+      <div class="form-group" id="form-summary-group" ${existingSummary ? "" : "hidden"}>
+        <label class="label" for="entry-summary">AI Summary</label>
+        <textarea id="entry-summary" name="summary" class="textarea" rows="2" placeholder="AI-generated summary will appear here...">${esc(existingSummary)}</textarea>
+      </div>
+
+      <div class="form-group" id="form-actions-group" ${existingActions.length ? "" : "hidden"}>
+        <label class="label">Action Items</label>
+        <ul class="ai-action-items" id="ai-action-items-list">
+          ${existingActions.map((a) => `<li>${esc(a)}</li>`).join("")}
+        </ul>
+      </div>
+
       <div class="form-row">
         <div class="form-group">
           <label class="label" for="entry-status">Status</label>
@@ -168,6 +209,10 @@ export function renderEntryForm(entry = null) {
             <option value="archived" ${status === "archived" ? "selected" : ""}>Archived</option>
           </select>
         </div>
+      </div>
+
+      <div class="form-group" id="duplicate-warning-group" hidden>
+        <div class="duplicate-warning" id="duplicate-warning"></div>
       </div>
     </form>
   `;
@@ -198,6 +243,7 @@ export function collectFormData() {
   const content = form.querySelector('[name="content"]').value.trim();
   const myNote = form.querySelector('[name="myNote"]').value.trim();
   const status = form.querySelector('[name="status"]').value;
+  const summary = form.querySelector('[name="summary"]')?.value.trim() || "";
 
   // Collect tags from rendered tag elements
   const tags = [];
@@ -214,7 +260,14 @@ export function collectFormData() {
     relatedEntryIds.push(el.dataset.relatedId);
   });
 
-  return { id, type, title, sourceUrl, excerpt, content, myNote, tags, status, images, relatedEntryIds };
+  // AI action items (if present in DOM)
+  const aiActionItems = [];
+  form.querySelectorAll("#ai-action-items-list li").forEach((li) => {
+    const text = li.textContent?.trim();
+    if (text) aiActionItems.push(text);
+  });
+
+  return { id, type, title, sourceUrl, excerpt, content, myNote, tags, status, images, relatedEntryIds, summary, aiActionItems };
 }
 
 /**

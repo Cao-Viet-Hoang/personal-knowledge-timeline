@@ -47,11 +47,43 @@ import {
   hideFirebaseError,
   closeFirebaseModal,
 } from "./components/firebase-modal.js";
+import { renderAskView } from "./components/ask-view.js";
+import { renderDigestView } from "./components/digest-view.js";
+import { renderChatEntryModal, initChatEntryModal } from "./components/chat-entry-modal.js";
+import {
+  renderAISettingsModal,
+  collectAISettings,
+  showAISettingsError,
+  hideAISettingsError,
+  closeAISettingsModal,
+  saveAIConfig,
+  clearAIConfig,
+  validateAIConfig,
+} from "./components/ai-settings-modal.js";
+import { isAIConfigured, getAIConfig } from "./ai/ai-config.js";
+import { testConnection } from "./ai/ai-client.js";
+import { indexAllMissing, indexEntry, reindexEntry } from "./ai/ai-index.js";
+import { findSimilarToEntry, findPossibleDuplicates } from "./ai/ai-search.js";
+import {
+  enrichEntry,
+  generateTitle,
+  generateSummary,
+  generateTags,
+  expandContent,
+  translateText,
+  parseUrl,
+  suggestTagMerges,
+} from "./ai/ai-actions.js";
+import { embeddingCoverage, getAllTags, applyEnrichment, loadEmbeddings, clearEmbeddingCache } from "./store/store.js";
+import { formatRelative } from "./utils/date.js";
 
 // ── App State ──────────────────────────────────────────
 
 let currentView = "timeline";
 let activeFilters = {};
+
+const PAGE_SIZE = 50;
+let _timelineDisplayCount = PAGE_SIZE;
 
 // ── DOM References ─────────────────────────────────────
 
@@ -74,6 +106,8 @@ const VIEW_TITLES = {
   "type-quote": "Quotes",
   search: "Search",
   review: "Review",
+  ask: "Ask",
+  digest: "Digest",
 };
 
 // ── Sidebar (mobile drawer) ───────────────────────────
@@ -103,6 +137,7 @@ function initSidebar() {
 function navigate(view) {
   currentView = view;
   activeFilters = {};
+  _timelineDisplayCount = PAGE_SIZE;
   closeSidebar();
   render();
 }
@@ -150,13 +185,14 @@ function render() {
   topBarTitle.textContent = VIEW_TITLES[currentView] || "Timeline";
 
   // Filter bar
-  if (currentView === "search" || currentView === "review") {
+  if (["search", "review", "ask", "digest"].includes(currentView)) {
     filterBarEl.innerHTML = "";
   } else {
     renderFilterBar(filterBarEl, {
       activeFilters,
       onFilterChange: (filters) => {
         activeFilters = filters;
+        _timelineDisplayCount = PAGE_SIZE;
         render();
       },
     });
@@ -167,14 +203,27 @@ function render() {
     renderSearchView();
   } else if (currentView === "review") {
     renderReviewView();
+  } else if (currentView === "ask") {
+    renderAskView(pageContent, { onEntryClick: openEntryDetail });
+  } else if (currentView === "digest") {
+    renderDigestView(pageContent);
   } else {
     renderTimelineView();
   }
 }
 
 function renderTimelineView() {
-  const entries = getViewEntries();
-  renderTimeline(pageContent, entries, {
+  const allEntries = getViewEntries();
+  const displayEntries = allEntries.slice(0, _timelineDisplayCount);
+  const hasMore = allEntries.length > _timelineDisplayCount;
+
+  renderTimeline(pageContent, displayEntries, {
+    hasMore,
+    totalCount: allEntries.length,
+    onLoadMore: () => {
+      _timelineDisplayCount += PAGE_SIZE;
+      renderTimelineView();
+    },
     onEntryClick: openEntryDetail,
     onNewEntry: handleNewEntry,
     onStar: handleToggleStar,
@@ -289,9 +338,9 @@ function handleSaveEntry() {
     }
   }
 
+  let savedEntry;
   if (data.id) {
-    // Editing existing entry
-    updateEntry(data.id, {
+    savedEntry = updateEntry(data.id, {
       type: data.type,
       title: data.title,
       sourceUrl: data.sourceUrl,
@@ -302,10 +351,11 @@ function handleSaveEntry() {
       status: data.status,
       images: data.images || [],
       relatedEntryIds: data.relatedEntryIds || [],
+      summary: data.summary || "",
+      aiActionItems: data.aiActionItems || [],
     });
   } else {
-    // Creating new entry
-    createEntry({
+    savedEntry = createEntry({
       type: data.type,
       title: data.title,
       sourceUrl: data.sourceUrl,
@@ -315,11 +365,52 @@ function handleSaveEntry() {
       tags: data.tags,
       images: data.images || [],
       relatedEntryIds: data.relatedEntryIds || [],
+      summary: data.summary || "",
+      aiActionItems: data.aiActionItems || [],
     });
   }
 
   closeModal("entry-form-modal");
   render();
+
+  if (savedEntry) backgroundEnrich(savedEntry).catch((err) => console.error("[AI] enrich failed:", err));
+}
+
+/**
+ * Auto-enrich an entry in the background:
+ *   - Generate tags + summary if missing and autoEnrich is on
+ *   - Re-compute the embedding so semantic search stays in sync
+ * Silently no-ops when AI is not configured.
+ */
+async function backgroundEnrich(entry) {
+  if (!isAIConfigured()) return;
+  const cfg = getAIConfig();
+
+  // Enrichment and embedding are independent — a failure in one must not
+  // prevent the other. Embedding in particular is critical for semantic
+  // search, so we always attempt it even if enrichment throws.
+  if (cfg.autoEnrich) {
+    try {
+      const needTags = !entry.tags || entry.tags.length === 0;
+      const needSummary = !entry.summary;
+      if (needTags || needSummary) {
+        const enriched = await enrichEntry(entry);
+        applyEnrichment(entry.id, {
+          summary: needSummary ? enriched.summary : undefined,
+          tags: needTags ? enriched.tags : undefined,
+        });
+      }
+    } catch (err) {
+      console.error("[AI] enrichEntry failed:", err);
+    }
+  }
+
+  try {
+    await reindexEntry(entry);
+    render();
+  } catch (err) {
+    console.error("[AI] reindexEntry failed:", err);
+  }
 }
 
 /**
@@ -796,6 +887,37 @@ function initGlobalDelegation() {
   on(document, "click", "[data-action='firebase-disconnect']", () => {
     handleFirebaseDisconnect();
   });
+
+  // AI Settings modal
+  on(document, "click", "[data-action='open-ai-settings']", () => {
+    openAISettings();
+  });
+
+  // Entry detail: Chat
+  on(document, "click", "[data-action='detail-chat']", (e, el) => {
+    openChatWithEntry(el.dataset.entryId);
+  });
+
+  // Entry detail: AI Related
+  on(document, "click", "[data-action='detail-ai-related']", (e, el) => {
+    runFindAIRelated(el.dataset.entryId, el);
+  });
+
+  // Entry form: AI action buttons
+  on(document, "click", "[data-ai-action]", (e, el) => {
+    e.preventDefault();
+    runFormAIAction(el.dataset.aiAction, el);
+  });
+
+  // Duplicate warning: ignore / view duplicate
+  on(document, "click", "[data-dup-dismiss]", () => {
+    const el = $("#duplicate-warning-group");
+    if (el) el.hidden = true;
+  });
+  on(document, "click", "[data-dup-open]", (e, el) => {
+    closeModal("entry-form-modal");
+    openEntryDetail(el.dataset.entryId);
+  });
 }
 
 // ── Keyboard Shortcuts ─────────────────────────────────
@@ -853,6 +975,10 @@ function initTopBar() {
  */
 async function bootApp() {
   await initStore();
+  // Load embeddings into memory so semantic search is instant.
+  // Safe to call even when AI is not configured — embeddings may still
+  // exist from a previous session.
+  await loadEmbeddings();
 
   createModals();
   initModalListeners();
@@ -863,6 +989,340 @@ async function bootApp() {
 
   render();
 }
+
+// ── AI Settings Modal ─────────────────────────────────
+
+function openAISettings() {
+  closeSidebar();
+  const coverage = embeddingCoverage();
+  modalsContainer.insertAdjacentHTML("beforeend", renderAISettingsModal(coverage));
+
+  const backdrop = $("#ai-settings-modal-backdrop");
+  const close = () => closeAISettingsModal();
+
+  backdrop?.addEventListener("click", close);
+  document.querySelectorAll("[data-close-ai-settings]").forEach((btn) =>
+    btn.addEventListener("click", close)
+  );
+
+  // Save
+  $("#ai-save-btn")?.addEventListener("click", () => {
+    hideAISettingsError();
+    const cfg = collectAISettings();
+    const v = validateAIConfig(cfg);
+    if (!v.valid) {
+      showAISettingsError(`Missing: ${v.missing.join(", ")}`);
+      return;
+    }
+    saveAIConfig(cfg);
+    close();
+    render();
+  });
+
+  // Test connection
+  $("#ai-test-btn")?.addEventListener("click", async () => {
+    const cfg = collectAISettings();
+    const v = validateAIConfig(cfg);
+    if (!v.valid) {
+      showAISettingsError(`Missing: ${v.missing.join(", ")}`);
+      return;
+    }
+    saveAIConfig(cfg);
+    const resultEl = $("#ai-test-result");
+    if (resultEl) resultEl.textContent = "Testing...";
+    const result = await testConnection();
+    if (!resultEl) return;
+    if (result.ok) {
+      resultEl.innerHTML = `<span class="ai-test-ok">✓ Chat + Embeddings OK</span>`;
+    } else {
+      resultEl.innerHTML = `<span class="ai-test-fail">✗ ${result.error || "Failed"}</span>`;
+    }
+  });
+
+  // Index missing entries
+  $("#ai-index-btn")?.addEventListener("click", () => runIndexing(false));
+  $("#ai-reindex-all-btn")?.addEventListener("click", () => runIndexing(true));
+
+  // Clear embeddings
+  $("#ai-clear-index-btn")?.addEventListener("click", async () => {
+    if (!confirm("Delete all embeddings? You can re-index any time.")) return;
+    const adapter = _currentAdapter;
+    if (adapter?.clearEmbeddings) await adapter.clearEmbeddings();
+    clearEmbeddingCache();
+    // Re-render the modal to refresh stats
+    close();
+    openAISettings();
+  });
+
+  // Suggest tag merges
+  $("#ai-merge-tags-btn")?.addEventListener("click", async () => {
+    const resultEl = $("#ai-tag-merge-result");
+    if (!resultEl) return;
+    resultEl.innerHTML = `<span class="ai-test-result">Analyzing tags...</span>`;
+    try {
+      const groups = await suggestTagMerges(getAllTags());
+      if (groups.length === 0) {
+        resultEl.innerHTML = `<span class="ai-test-result">No duplicate tag groups found.</span>`;
+        return;
+      }
+      resultEl.innerHTML = `
+        <div class="ai-tag-groups">
+          ${groups.map((g) => `
+            <div class="ai-tag-group">
+              <span class="tag">#${escapeForHtml(g.canonical)}</span>
+              <span class="ai-tag-group-arrow">←</span>
+              ${(g.aliases || []).map((a) => `<span class="tag tag--muted">#${escapeForHtml(a)}</span>`).join(" ")}
+            </div>
+          `).join("")}
+        </div>
+      `;
+    } catch (err) {
+      resultEl.innerHTML = `<span class="ai-test-fail">${escapeForHtml(err.message)}</span>`;
+    }
+  });
+
+  // Forget credentials
+  $("#ai-forget-btn")?.addEventListener("click", () => {
+    if (!confirm("Remove stored AI credentials from this browser?")) return;
+    clearAIConfig();
+    close();
+    render();
+  });
+}
+
+async function runIndexing(reindexAll) {
+  if (!isAIConfigured()) {
+    showAISettingsError("Configure AI first.");
+    return;
+  }
+  const progressEl = $("#ai-progress");
+  const barEl = $("#ai-progress-fill");
+  const textEl = $("#ai-progress-text");
+  const statsEl = $("#ai-index-stats");
+  if (progressEl) progressEl.hidden = false;
+
+  if (reindexAll && _currentAdapter?.clearEmbeddings) {
+    await _currentAdapter.clearEmbeddings();
+    // Keep the in-memory cache in sync so indexAllMissing re-embeds everything.
+    clearEmbeddingCache();
+  }
+
+  try {
+    await indexAllMissing((progress) => {
+      const pct = progress.total === 0 ? 100 : ((progress.done + progress.errors) / progress.total) * 100;
+      if (barEl) barEl.style.width = `${Math.min(100, pct)}%`;
+      if (textEl) {
+        textEl.textContent = `${progress.done}/${progress.total} indexed${progress.errors ? ` · ${progress.errors} errors` : ""}`;
+      }
+    });
+    const cov = embeddingCoverage();
+    if (statsEl) statsEl.textContent = `${cov.indexed} / ${cov.total}`;
+  } catch (err) {
+    if (textEl) textEl.textContent = `Failed: ${err.message}`;
+  }
+}
+
+// ── Chat-with-entry Modal ─────────────────────────────
+
+function openChatWithEntry(entryId) {
+  if (!isAIConfigured()) {
+    alert("Configure AI first (AI Settings in the sidebar).");
+    return;
+  }
+  modalsContainer.insertAdjacentHTML("beforeend", renderChatEntryModal(entryId));
+  initChatEntryModal(entryId);
+}
+
+// ── AI Related (similarity) in entry detail ──────────
+
+async function runFindAIRelated(entryId, buttonEl) {
+  const listEl = $("#ai-related-list");
+  if (!listEl) return;
+  if (!isAIConfigured()) {
+    listEl.innerHTML = `<div class="ask-empty">AI not configured.</div>`;
+    return;
+  }
+  const origLabel = buttonEl.innerHTML;
+  buttonEl.disabled = true;
+  buttonEl.innerHTML = `Loading...`;
+  listEl.innerHTML = `<div class="ask-loading">Finding similar entries...</div>`;
+
+  try {
+    // If the current entry has no embedding yet, index it now
+    const entry = getEntry(entryId);
+    if (entry) await indexEntry(entry);
+    const hits = await findSimilarToEntry(entryId, 5, 0.35);
+    if (hits.length === 0) {
+      listEl.innerHTML = `<div class="ask-empty">No similar entries found.</div>`;
+    } else {
+      listEl.innerHTML = hits.map(({ entry: e, score }) => `
+        <div class="related-entry-item" data-related-entry-id="${e.id}">
+          <span class="related-entry-dot" style="background: hsl(var(--color-${e.type}))"></span>
+          <span class="related-entry-title">${escapeForHtml(e.title)}</span>
+          <span class="related-entry-date">${formatRelative(e.createdAt)} · ${Math.round(score * 100)}%</span>
+        </div>
+      `).join("");
+    }
+  } catch (err) {
+    listEl.innerHTML = `<div class="ask-error">${escapeForHtml(err.message)}</div>`;
+  } finally {
+    buttonEl.disabled = false;
+    buttonEl.innerHTML = origLabel;
+  }
+}
+
+// ── Entry-form AI actions ────────────────────────────
+
+async function runFormAIAction(action, buttonEl) {
+  if (!isAIConfigured()) {
+    setFormAIStatus("Configure AI first (AI Settings).", true);
+    return;
+  }
+  const origLabel = buttonEl.innerHTML;
+  buttonEl.disabled = true;
+  buttonEl.innerHTML = `${icon("sparkles", 14)} ...`;
+
+  try {
+    const data = collectFormData();
+    const entry = data ? buildFormEntry(data) : null;
+
+    switch (action) {
+      case "parse-url": {
+        if (!entry?.sourceUrl) { setFormAIStatus("Enter a URL first."); break; }
+        setFormAIStatus("Fetching & parsing URL...");
+        const parsed = await parseUrl(entry.sourceUrl);
+        if (parsed.title && !entry.title) setFieldValue("entry-title", parsed.title);
+        if (parsed.excerpt) setFieldValue("entry-excerpt", parsed.excerpt);
+        if (parsed.tags?.length) {
+          parsed.tags.forEach((t) => addTagToForm(String(t).toLowerCase()));
+        }
+        setFormAIStatus("Parsed ✓");
+        break;
+      }
+      case "auto-title": {
+        setFormAIStatus("Generating title...");
+        const title = await generateTitle(entry);
+        if (title) setFieldValue("entry-title", title);
+        setFormAIStatus("Done ✓");
+        break;
+      }
+      case "auto-summary": {
+        setFormAIStatus("Summarizing...");
+        const summary = await generateSummary(entry);
+        setFieldValue("entry-summary", summary);
+        const group = $("#form-summary-group");
+        if (group) group.hidden = false;
+        setFormAIStatus("Done ✓");
+        break;
+      }
+      case "auto-tags": {
+        setFormAIStatus("Suggesting tags...");
+        const tags = await generateTags(entry);
+        tags.forEach((t) => addTagToForm(String(t).toLowerCase()));
+        setFormAIStatus(`Added ${tags.length} tag${tags.length === 1 ? "" : "s"} ✓`);
+        break;
+      }
+      case "expand": {
+        const contentEl = $("#entry-content");
+        const excerptEl = $("#entry-excerpt");
+        const target = (contentEl && !contentEl.closest("[hidden]")) ? contentEl : excerptEl;
+        if (!target || !target.value.trim()) { setFormAIStatus("Nothing to expand."); break; }
+        setFormAIStatus("Expanding...");
+        const expanded = await expandContent(target.value);
+        target.value = expanded;
+        setFormAIStatus("Done ✓");
+        break;
+      }
+      case "translate-en":
+      case "translate-vi": {
+        const lang = action === "translate-en" ? "English" : "Vietnamese";
+        const contentEl = $("#entry-content");
+        const excerptEl = $("#entry-excerpt");
+        const target = (contentEl && !contentEl.closest("[hidden]")) ? contentEl : excerptEl;
+        if (!target || !target.value.trim()) { setFormAIStatus("Nothing to translate."); break; }
+        setFormAIStatus(`Translating to ${lang}...`);
+        target.value = await translateText(target.value, lang);
+        setFormAIStatus("Done ✓");
+        break;
+      }
+      default:
+        setFormAIStatus(`Unknown action: ${action}`, true);
+    }
+  } catch (err) {
+    setFormAIStatus(err.message, true);
+  } finally {
+    buttonEl.disabled = false;
+    buttonEl.innerHTML = origLabel;
+    runDuplicateCheck().catch(() => {});
+  }
+}
+
+function buildFormEntry(data) {
+  return {
+    id: data.id,
+    type: data.type,
+    title: data.title,
+    sourceUrl: data.sourceUrl,
+    excerpt: data.excerpt,
+    content: data.content,
+    myNote: data.myNote,
+    tags: data.tags || [],
+    summary: data.summary,
+  };
+}
+
+function setFieldValue(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value;
+}
+
+function setFormAIStatus(msg, isError = false) {
+  const el = $("#form-ai-status");
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.toggle("form-ai-status--error", isError);
+}
+
+/** Check for possible duplicates based on current form title+content. */
+async function runDuplicateCheck() {
+  if (!isAIConfigured()) return;
+  const data = collectFormData();
+  if (!data) return;
+  const text = [data.title, data.excerpt, data.content, data.myNote].filter(Boolean).join("\n");
+  if (text.trim().length < 20) return;
+
+  const group = $("#duplicate-warning-group");
+  const warn = $("#duplicate-warning");
+  if (!group || !warn) return;
+
+  try {
+    const dups = await findPossibleDuplicates(text, { excludeId: data.id || null, threshold: 0.82, k: 3 });
+    if (dups.length === 0) {
+      group.hidden = true;
+      return;
+    }
+    warn.innerHTML = `
+      <div class="duplicate-warning-title">Possible duplicate entries detected</div>
+      <ul class="duplicate-warning-list">
+        ${dups.map((d) => `
+          <li>
+            <button class="duplicate-warning-link" data-dup-open data-entry-id="${d.entry.id}">
+              ${escapeForHtml(d.entry.title)}
+            </button>
+            <span class="duplicate-warning-score">${Math.round(d.score * 100)}% similar</span>
+          </li>
+        `).join("")}
+      </ul>
+      <button class="btn btn-ghost btn-sm" data-dup-dismiss>Dismiss</button>
+    `;
+    group.hidden = false;
+  } catch (err) {
+    console.error("[AI] duplicate check:", err);
+  }
+}
+
+// Track the current adapter so AI settings can access it for clearEmbeddings etc.
+let _currentAdapter = null;
 
 /**
  * Disconnect from Firebase and show the credentials modal again.
@@ -930,12 +1390,14 @@ function showFirebaseSetup() {
 
 async function init() {
   if (config.isDev) {
-    // Dev mode: use localStorage adapter
+    // Dev mode: use IndexedDB adapter
+    _currentAdapter = localAdapter;
     setAdapter(localAdapter);
     await bootApp();
   } else {
     // Prod mode: need Firebase credentials first
     await showFirebaseSetup();
+    _currentAdapter = firebaseAdapter;
     setAdapter(firebaseAdapter);
     await bootApp();
   }

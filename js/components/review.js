@@ -5,8 +5,10 @@
 
 import { icon } from "../utils/icons.js";
 import { formatDate, formatRelative } from "../utils/date.js";
-import { getReviewEntries, getReflection, saveReflection } from "../store/store.js";
+import { getReviewEntries, getReflection, saveReflection, getAllEntries } from "../store/store.js";
 import { on } from "../utils/dom.js";
+import { isAIConfigured } from "../ai/ai-config.js";
+import { generateReflectionPrompt } from "../ai/ai-actions.js";
 
 function todayKey() {
   const d = new Date();
@@ -124,8 +126,11 @@ export function renderReview(container, { onEntryClick }) {
     const reflectionContent = existingReflection?.content || "";
     const reflectionHtml = `
       <div class="reflection-card" style="margin-top: var(--space-8)">
-        <div class="detail-section-title">Daily Reflection</div>
-        <div class="reflection-prompt">What did you learn today? What connections did you make?</div>
+        <div class="detail-section-title">
+          Daily Reflection
+          ${isAIConfigured() ? `<button class="btn btn-ghost btn-sm" id="ai-reflection-prompt" style="margin-left: auto">${icon("sparkles", 14)} Suggest prompt</button>` : ""}
+        </div>
+        <div class="reflection-prompt" id="reflection-prompt-text">What did you learn today? What connections did you make?</div>
         <textarea class="reflection-textarea" id="reflection-text" placeholder="Write your reflection here...">${escapeHtml(reflectionContent)}</textarea>
         <div class="reflection-footer">
           <span class="reflection-date">${formatDate(new Date().toISOString())}</span>
@@ -152,6 +157,25 @@ export function renderReview(container, { onEntryClick }) {
     // ── Bind card click → detail ──
     on(container, "click", ".review-card", (e, el) => {
       onEntryClick?.(el.dataset.entryId);
+    });
+
+    // ── Bind AI reflection prompt ──
+    on(container, "click", "#ai-reflection-prompt", async (e, el) => {
+      const promptEl = container.querySelector("#reflection-prompt-text");
+      if (!promptEl) return;
+      const originalLabel = el.innerHTML;
+      el.disabled = true;
+      el.innerHTML = `${icon("sparkles", 14)} Thinking...`;
+      try {
+        const recent = getAllEntries().slice(0, 20);
+        const prompt = await generateReflectionPrompt(recent);
+        promptEl.textContent = prompt;
+      } catch (err) {
+        promptEl.textContent = `Error: ${err.message}`;
+      } finally {
+        el.disabled = false;
+        el.innerHTML = originalLabel;
+      }
     });
 
     // ── Bind save reflection ──
