@@ -225,6 +225,7 @@ function normalizeEntry(entry) {
     // AI-derived fields
     summary: entry.summary || "",
     aiActionItems: entry.aiActionItems || [],
+    aiLanguage: entry.aiLanguage === "vi" ? "vi" : "en",
     embeddingModel: entry.embeddingModel || "",
     embeddingUpdatedAt: entry.embeddingUpdatedAt || null,
   };
@@ -280,6 +281,7 @@ export function createEntry(data) {
     backlinks: [],
     summary: data.summary || "",
     aiActionItems: data.aiActionItems || [],
+    aiLanguage: data.aiLanguage === "vi" ? "vi" : "en",
     embeddingModel: "",
     embeddingUpdatedAt: null,
   };

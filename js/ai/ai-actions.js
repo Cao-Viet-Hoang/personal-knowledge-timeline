@@ -10,13 +10,25 @@ import { chatCompletion, chatJson } from "./ai-client.js";
 
 // ── System prompt ──────────────────────────────────────
 
-const SYSTEM_PROMPT =
-  "You are an assistant embedded in a personal knowledge timeline app. " +
-  "Answer concisely, always respond in English regardless of the input language, " +
-  "and never invent information.";
+const LANG_NAMES = { en: "English", vi: "Vietnamese" };
 
-function sys(extra = "") {
-  return { role: "system", content: extra ? `${SYSTEM_PROMPT} ${extra}` : SYSTEM_PROMPT };
+/** Normalize a free-form language option into a known language name. */
+function langName(lang) {
+  const key = typeof lang === "string" ? lang.toLowerCase() : "";
+  return LANG_NAMES[key] || LANG_NAMES.en;
+}
+
+function systemPromptFor(lang) {
+  return (
+    "You are an assistant embedded in a personal knowledge timeline app. " +
+    "Answer concisely, never invent information, " +
+    `and always respond in ${langName(lang)} regardless of the input language.`
+  );
+}
+
+function sys(extra = "", lang = "en") {
+  const base = systemPromptFor(lang);
+  return { role: "system", content: extra ? `${base} ${extra}` : base };
 }
 
 function user(content) {
@@ -41,18 +53,20 @@ function entryAsContext(entry) {
  * Auto-generate tags, summary, type, and title from the entry content.
  * Returns an object that can be merged onto the entry.
  * @param {object} entry
+ * @param {{language?: "en"|"vi"}} [options]
  * @returns {Promise<{tags:string[], summary:string, suggestedType:string, suggestedTitle:string}>}
  */
-export async function enrichEntry(entry) {
+export async function enrichEntry(entry, { language = "en" } = {}) {
   const ctx = entryAsContext(entry);
+  const ln = langName(language);
   const prompt = `Analyze this knowledge entry and respond with JSON:\n\n${ctx}\n\n` +
     `Return a JSON object with these keys:\n` +
-    `- "tags": array of 3-6 lowercase, single-word (or hyphenated) topical tags\n` +
-    `- "summary": 1-2 sentence summary in English\n` +
+    `- "tags": array of 3-6 lowercase, single-word (or hyphenated) topical tags in ${ln}\n` +
+    `- "summary": 1-2 sentence summary in ${ln}\n` +
     `- "suggestedType": one of "link" | "note" | "thought" | "quote"\n` +
-    `- "suggestedTitle": a concise title (only if the current title is empty or a raw URL)\n`;
+    `- "suggestedTitle": a concise title in ${ln} (only if the current title is empty or a raw URL)\n`;
 
-  const result = await chatJson([sys("Return ONLY valid JSON."), user(prompt)], {
+  const result = await chatJson([sys("Return ONLY valid JSON.", language), user(prompt)], {
     temperature: 0.2,
   });
   return {
@@ -64,12 +78,13 @@ export async function enrichEntry(entry) {
 }
 
 /** Generate tags only (faster, cheaper). */
-export async function generateTags(entry) {
+export async function generateTags(entry, { language = "en" } = {}) {
   const ctx = entryAsContext(entry);
+  const ln = langName(language);
   const result = await chatJson(
     [
-      sys("Return ONLY valid JSON."),
-      user(`Generate 3-6 short, lowercase topical tags for this entry. Return JSON { "tags": [...] }.\n\n${ctx}`),
+      sys("Return ONLY valid JSON.", language),
+      user(`Generate 3-6 short, lowercase topical tags in ${ln} for this entry. Return JSON { "tags": [...] }.\n\n${ctx}`),
     ],
     { temperature: 0.2 }
   );
@@ -77,35 +92,38 @@ export async function generateTags(entry) {
 }
 
 /** Generate a concise title from content. */
-export async function generateTitle(entry) {
+export async function generateTitle(entry, { language = "en" } = {}) {
   const ctx = entryAsContext(entry);
+  const ln = langName(language);
   return (await chatCompletion(
     [
-      sys("Reply with a single short title, no quotes, no trailing period."),
-      user(`Suggest a concise title (max 10 words) for this entry:\n\n${ctx}`),
+      sys("Reply with a single short title, no quotes, no trailing period.", language),
+      user(`Suggest a concise title in ${ln} (max 10 words) for this entry:\n\n${ctx}`),
     ],
     { temperature: 0.4, maxTokens: 60 }
   )).trim().replace(/^["']|["']$/g, "");
 }
 
 /** Generate a 1-2 sentence summary. */
-export async function generateSummary(entry) {
+export async function generateSummary(entry, { language = "en" } = {}) {
   const ctx = entryAsContext(entry);
+  const ln = langName(language);
   return (await chatCompletion(
     [
-      sys("Reply in English."),
-      user(`Summarize this entry in 1-2 sentences:\n\n${ctx}`),
+      sys("", language),
+      user(`Summarize this entry in 1-2 sentences in ${ln}:\n\n${ctx}`),
     ],
     { temperature: 0.3, maxTokens: 200 }
   )).trim();
 }
 
 /** Expand a short thought into a fuller paragraph. */
-export async function expandContent(text, { tone = "neutral" } = {}) {
+export async function expandContent(text, { tone = "neutral", language = "en" } = {}) {
+  const ln = langName(language);
   return (await chatCompletion(
     [
-      sys("Expand without inventing facts. Reply in English."),
-      user(`Expand this short note into a clearer paragraph (${tone} tone):\n\n${text}`),
+      sys(`Expand without inventing facts.`, language),
+      user(`Expand this short note into a clearer paragraph in ${ln} (${tone} tone):\n\n${text}`),
     ],
     { temperature: 0.5 }
   )).trim();
@@ -258,7 +276,7 @@ export async function chatWithEntry(entry, history, newQuestion) {
  * @param {string} url
  * @returns {Promise<{title:string, excerpt:string, content:string, tags:string[]}>}
  */
-export async function parseUrl(url) {
+export async function parseUrl(url, { language = "en" } = {}) {
   const readerUrl = `https://r.jina.ai/${url}`;
   let page = "";
   try {
@@ -272,12 +290,13 @@ export async function parseUrl(url) {
     throw new Error("Could not fetch URL content. Try pasting the text manually.");
   }
 
+  const ln = langName(language);
   const trimmed = page.slice(0, 8000);
   const result = await chatJson(
     [
-      sys("Return ONLY valid JSON."),
+      sys("Return ONLY valid JSON.", language),
       user(
-        `From this webpage content, extract:\n` +
+        `From this webpage content, extract (all text values in ${ln}):\n` +
         `{ "title": "...", "excerpt": "1-2 sentence summary", "tags": [3-5 lowercase tags] }\n\n` +
         trimmed
       ),

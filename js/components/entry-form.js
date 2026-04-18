@@ -19,6 +19,7 @@ export function renderEntryForm(entry = null) {
   const status = entry?.status || "inbox";
   const images = entry?.images || [];
   const relatedEntryIds = entry?.relatedEntryIds || [];
+  const aiLanguage = entry?.aiLanguage === "vi" ? "vi" : "en";
 
   // Build related entries HTML from current data
   const allEntries = getAllEntries();
@@ -56,11 +57,18 @@ export function renderEntryForm(entry = null) {
     <form class="entry-form" id="entry-form" novalidate>
       <input type="hidden" name="id" value="${entry?.id || ""}" />
       <input type="hidden" name="type" value="${type}" />
+      <input type="hidden" name="aiLanguage" value="${aiLanguage}" />
 
       <div class="ai-toolbar" role="group" aria-label="AI assist">
         <div class="ai-toolbar-header">
           <span class="ai-toolbar-title">${icon("sparkles", 14)} AI Assist</span>
-          <span id="form-ai-status" class="ai-toolbar-status" aria-live="polite"></span>
+          <div class="ai-toolbar-header-right">
+            <span id="form-ai-status" class="ai-toolbar-status" aria-live="polite"></span>
+            <div class="ai-lang-toggle" role="group" aria-label="AI output language" title="Language used by AI to generate and enrich content">
+              <button type="button" class="ai-lang-btn ${aiLanguage === "en" ? "active" : ""}" data-ai-lang="en" aria-pressed="${aiLanguage === "en"}">EN</button>
+              <button type="button" class="ai-lang-btn ${aiLanguage === "vi" ? "active" : ""}" data-ai-lang="vi" aria-pressed="${aiLanguage === "vi"}">VI</button>
+            </div>
+          </div>
         </div>
         <div class="ai-toolbar-actions">
           <div class="ai-toolbar-group" aria-label="Fetch from URL">
@@ -266,6 +274,8 @@ export function collectFormData() {
   const myNote = form.querySelector('[name="myNote"]').value.trim();
   const status = form.querySelector('[name="status"]').value;
   const summary = form.querySelector('[name="summary"]')?.value.trim() || "";
+  const aiLanguageRaw = form.querySelector('[name="aiLanguage"]')?.value || "en";
+  const aiLanguage = aiLanguageRaw === "vi" ? "vi" : "en";
 
   // Collect tags from rendered tag elements
   const tags = [];
@@ -289,7 +299,7 @@ export function collectFormData() {
     if (text) aiActionItems.push(text);
   });
 
-  return { id, type, title, sourceUrl, excerpt, content, myNote, tags, status, images, relatedEntryIds, summary, aiActionItems };
+  return { id, type, title, sourceUrl, excerpt, content, myNote, tags, status, images, relatedEntryIds, summary, aiActionItems, aiLanguage };
 }
 
 /**

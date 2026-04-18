@@ -406,6 +406,7 @@ function buildDraftFromFormData(data) {
     relatedEntryIds: data.relatedEntryIds || [],
     summary: normalizeText(data.summary),
     aiActionItems: data.aiActionItems || [],
+    aiLanguage: data.aiLanguage === "vi" ? "vi" : "en",
   };
 }
 
@@ -441,7 +442,7 @@ async function runAIStepsForDraft(draft, aiPlan, { onStatus } = {}) {
     try {
       const needTags = !draft.tags || draft.tags.length === 0;
       const needSummary = !draft.summary;
-      const enriched = await enrichEntry(draft);
+      const enriched = await enrichEntry(draft, { language: draft.aiLanguage || "en" });
       if (needSummary && enriched.summary) {
         draft.summary = normalizeText(enriched.summary);
       }
@@ -1172,6 +1173,15 @@ function initGlobalDelegation() {
     runFormAIAction(el.dataset.aiAction, el);
   });
 
+  // Entry form: AI output language toggle
+  on(document, "click", "[data-ai-lang]", (e, el) => {
+    e.preventDefault();
+    const lang = el.dataset.aiLang === "vi" ? "vi" : "en";
+    const input = document.querySelector('#entry-form [name="aiLanguage"]');
+    if (input) input.value = lang;
+    syncLanguageButtons(lang);
+  });
+
   // Entry form: AI toolbar dropdown (Translate)
   on(document, "click", "[data-ai-menu-toggle]", (e, el) => {
     e.preventDefault();
@@ -1585,12 +1595,13 @@ async function runFormAIAction(action, buttonEl) {
   try {
     const data = collectFormData();
     const entry = data ? buildFormEntry(data) : null;
+    const language = getFormAILanguage();
 
     switch (action) {
       case "parse-url": {
         if (!entry?.sourceUrl) { setFormAIStatus("Enter a URL first."); break; }
         setFormAIStatus("Fetching & parsing URL...");
-        const parsed = await parseUrl(entry.sourceUrl);
+        const parsed = await parseUrl(entry.sourceUrl, { language });
         if (parsed.title && !entry.title) setFieldValue("entry-title", parsed.title);
         if (parsed.excerpt) setFieldValue("entry-excerpt", parsed.excerpt);
         if (parsed.tags?.length) {
@@ -1601,14 +1612,14 @@ async function runFormAIAction(action, buttonEl) {
       }
       case "auto-title": {
         setFormAIStatus("Generating title...");
-        const title = await generateTitle(entry);
+        const title = await generateTitle(entry, { language });
         if (title) setFieldValue("entry-title", title);
         setFormAIStatus("Done ✓");
         break;
       }
       case "auto-summary": {
         setFormAIStatus("Summarizing...");
-        const summary = await generateSummary(entry);
+        const summary = await generateSummary(entry, { language });
         setFieldValue("entry-summary", summary);
         const group = $("#form-summary-group");
         if (group) group.hidden = false;
@@ -1617,7 +1628,7 @@ async function runFormAIAction(action, buttonEl) {
       }
       case "auto-tags": {
         setFormAIStatus("Suggesting tags...");
-        const tags = await generateTags(entry);
+        const tags = await generateTags(entry, { language });
         tags.forEach((t) => addTagToForm(String(t).toLowerCase()));
         setFormAIStatus(`Added ${tags.length} tag${tags.length === 1 ? "" : "s"} ✓`);
         break;
@@ -1628,7 +1639,7 @@ async function runFormAIAction(action, buttonEl) {
         const target = (contentEl && !contentEl.closest("[hidden]")) ? contentEl : excerptEl;
         if (!target || !target.value.trim()) { setFormAIStatus("Nothing to expand."); break; }
         setFormAIStatus("Expanding...");
-        const expanded = await expandContent(target.value);
+        const expanded = await expandContent(target.value, { language });
         target.value = expanded;
         setFormAIStatus("Done ✓");
         break;
@@ -1638,11 +1649,29 @@ async function runFormAIAction(action, buttonEl) {
         const lang = action === "translate-en" ? "English" : "Vietnamese";
         const contentEl = $("#entry-content");
         const excerptEl = $("#entry-excerpt");
+        const summaryEl = $("#entry-summary");
         const target = (contentEl && !contentEl.closest("[hidden]")) ? contentEl : excerptEl;
-        if (!target || !target.value.trim()) { setFormAIStatus("Nothing to translate."); break; }
+        const summaryVisible = summaryEl && !summaryEl.closest("[hidden]");
+        const summaryText = summaryVisible ? summaryEl.value.trim() : "";
+        const primaryText = target?.value.trim() || "";
+
+        if (!primaryText && !summaryText) {
+          setFormAIStatus("Nothing to translate.");
+          break;
+        }
+
         setFormAIStatus(`Translating to ${lang}...`);
-        target.value = await translateText(target.value, lang);
-        setFormAIStatus("Done ✓");
+        const tasks = [];
+        if (primaryText) tasks.push(translateText(primaryText, lang).then((t) => { target.value = t; }));
+        if (summaryText) tasks.push(translateText(summaryText, lang).then((t) => { summaryEl.value = t; }));
+        await Promise.all(tasks);
+
+        const formLangInput = document.querySelector('#entry-form [name="aiLanguage"]');
+        const nextLang = action === "translate-vi" ? "vi" : "en";
+        if (formLangInput) formLangInput.value = nextLang;
+        syncLanguageButtons(nextLang);
+
+        setFormAIStatus(tasks.length > 1 ? "Translated content + summary ✓" : "Done ✓");
         break;
       }
       default:
@@ -1689,6 +1718,7 @@ function buildFormEntry(data) {
     myNote: data.myNote,
     tags: data.tags || [],
     summary: data.summary,
+    aiLanguage: data.aiLanguage === "vi" ? "vi" : "en",
   };
 }
 
@@ -1710,6 +1740,26 @@ function setFormAIStatus(msg, isError = false) {
   el.textContent = msg;
   el.classList.toggle("ai-toolbar-status--error", isError);
   el.title = msg || "";
+}
+
+/**
+ * Read the AI output language currently selected in the entry form.
+ * Falls back to "en" when the form or hidden field is missing.
+ */
+function getFormAILanguage() {
+  const input = document.querySelector('#entry-form [name="aiLanguage"]');
+  const raw = input?.value || "en";
+  return raw === "vi" ? "vi" : "en";
+}
+
+/** Reflect the chosen language on the toolbar toggle buttons. */
+function syncLanguageButtons(lang) {
+  const buttons = document.querySelectorAll("#entry-form .ai-lang-btn[data-ai-lang]");
+  buttons.forEach((btn) => {
+    const active = btn.dataset.aiLang === lang;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", active ? "true" : "false");
+  });
 }
 
 /** Check for possible duplicates based on current form title+content. */
