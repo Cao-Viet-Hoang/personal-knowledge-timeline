@@ -20,6 +20,9 @@ export function renderEntryForm(entry = null) {
   const images = entry?.images || [];
   const relatedEntryIds = entry?.relatedEntryIds || [];
   const aiLanguage = entry?.aiLanguage === "vi" ? "vi" : "en";
+  const createdDate = entry?.createdAt
+    ? entry.createdAt.slice(0, 10)
+    : todayDateString();
 
   // Build related entries HTML from current data
   const allEntries = getAllEntries();
@@ -141,6 +144,10 @@ export function renderEntryForm(entry = null) {
             <option value="processed" ${status === "processed" ? "selected" : ""}>Processed</option>
             <option value="archived" ${status === "archived" ? "selected" : ""}>Archived</option>
           </select>
+        </div>
+        <div class="form-group" id="form-date-group">
+          <label class="label" for="entry-created-date">Date</label>
+          <input type="date" id="entry-created-date" name="createdDate" class="input" value="${esc(createdDate)}" />
         </div>
       </div>
 
@@ -276,6 +283,8 @@ export function collectFormData() {
   const summary = form.querySelector('[name="summary"]')?.value.trim() || "";
   const aiLanguageRaw = form.querySelector('[name="aiLanguage"]')?.value || "en";
   const aiLanguage = aiLanguageRaw === "vi" ? "vi" : "en";
+  const createdDateRaw = form.querySelector('[name="createdDate"]')?.value || "";
+  const createdDate = /^\d{4}-\d{2}-\d{2}$/.test(createdDateRaw) ? createdDateRaw : "";
 
   // Collect tags from rendered tag elements
   const tags = [];
@@ -299,7 +308,7 @@ export function collectFormData() {
     if (text) aiActionItems.push(text);
   });
 
-  return { id, type, title, sourceUrl, excerpt, content, myNote, tags, status, images, relatedEntryIds, summary, aiActionItems, aiLanguage };
+  return { id, type, title, sourceUrl, excerpt, content, myNote, tags, status, images, relatedEntryIds, summary, aiActionItems, aiLanguage, createdDate };
 }
 
 /**
@@ -365,4 +374,12 @@ function updateImageWarning() {
 function esc(str) {
   if (!str) return "";
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function todayDateString() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }

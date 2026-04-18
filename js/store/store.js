@@ -273,7 +273,7 @@ export function createEntry(data) {
     myNote: data.myNote || "",
     tags: data.tags || [],
     images: data.images || [],
-    createdAt: timestamp,
+    createdAt: data.createdAt || timestamp,
     updatedAt: timestamp,
     starred: data.starred ?? false,
     status: data.status || "inbox",

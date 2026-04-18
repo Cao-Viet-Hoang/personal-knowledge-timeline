@@ -407,7 +407,24 @@ function buildDraftFromFormData(data) {
     summary: normalizeText(data.summary),
     aiActionItems: data.aiActionItems || [],
     aiLanguage: data.aiLanguage === "vi" ? "vi" : "en",
+    createdDate: data.createdDate || "",
   };
+}
+
+/**
+ * Resolve the ISO `createdAt` timestamp from the user-selected YYYY-MM-DD date.
+ * - Invalid/empty date → undefined (caller should let the store pick now()).
+ * - Edit mode + unchanged date → keep the original timestamp exactly.
+ * - Edit mode + new date → swap date portion, keep the original time-of-day.
+ * - New entry → combine selected date with the current time-of-day.
+ */
+function resolveCreatedAt(dateStr, original) {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return undefined;
+  if (original?.createdAt) {
+    if (original.createdAt.slice(0, 10) === dateStr) return original.createdAt;
+    return dateStr + original.createdAt.slice(10);
+  }
+  return dateStr + new Date().toISOString().slice(10);
 }
 
 function computeAIPlan({ isEdit, original, draft }) {
@@ -558,6 +575,9 @@ async function handleSaveEntry({ skipAI = false } = {}) {
   }
 
   const draft = buildDraftFromFormData(data);
+  const resolvedCreatedAt = resolveCreatedAt(draft.createdDate, original);
+  delete draft.createdDate;
+  if (resolvedCreatedAt) draft.createdAt = resolvedCreatedAt;
   _isEntrySavePending = true;
   setEntryFormSaveProgress("Saving entry...", { busy: true });
   setSaveWithoutAIVisible(false);
@@ -630,6 +650,7 @@ async function handleQuickCapture(data) {
     summary: "",
     aiActionItems: [],
   });
+  delete draft.createdDate;
 
   setQuickCaptureBusy(true, "Processing...");
 

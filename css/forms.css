@@ -23,7 +23,8 @@
 }
 
 @media (min-width: 769px) {
-  .entry-form #form-type-row > #form-status-group {
+  .entry-form #form-type-row > #form-status-group,
+  .entry-form #form-type-row > #form-date-group {
     flex: 0 0 160px;
   }
 }
