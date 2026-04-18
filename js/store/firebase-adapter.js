@@ -206,7 +206,7 @@ const firebaseAdapter = {
         ? metaSnap.data()
         : {};
 
-      // Return null if completely empty (triggers seed or empty store)
+      // Return null if completely empty so the store can start empty.
       const hasData = Object.keys(entries).length > 0 || metaSnap.exists;
       if (!hasData) return null;
 

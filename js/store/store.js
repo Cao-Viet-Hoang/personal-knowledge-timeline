@@ -2,8 +2,8 @@
  * Application data store.
  *
  * Persistence is delegated to an adapter:
- *   - "dev"  → LocalAdapter  (localStorage + seed JSON)
- *   - "prod" → FirebaseAdapter (Firestore)
+ *   - "dev"  -> LocalAdapter (IndexedDB)
+ *   - "prod" -> FirebaseAdapter (Firestore)
  *
  * All business logic (CRUD, search, filter) lives here.
  * The adapter only handles load / persist.
@@ -13,8 +13,7 @@ import { emit, Events } from "./event-bus.js";
 import config from "../config.js";
 import { normalizeTags } from "../utils/tags.js";
 
-// ── Internal state ─────────────────────────────────────
-
+// Internal state
 let _db = {
   entries: {},      // { [id]: EntryDoc }
   reflections: {},  // { [date]: ReflectionDoc }
@@ -22,18 +21,18 @@ let _db = {
 };
 
 /**
- * Embedding cache — { [entryId]: base64Float32String }.
+ * Embedding cache - { [entryId]: base64Float32String }.
  * Stored separately from entries to avoid bloating the main persist blob.
- * Loaded lazily from the adapter on demand (e.g. first semantic search).
+ * Loaded lazily from the adapter on demand (for example first semantic search).
  */
 let _embeddings = {};
 let _embeddingsLoaded = false;
 
-// ── Adapter interface ──────────────────────────────────
+// Adapter interface
 //
-//   adapter.load()    → returns { entries, reflections, meta } or null
-//   adapter.persist(db) → saves the full _db object
-//   adapter.clear()   → wipe stored data
+//   adapter.load() -> returns { entries, reflections, meta } or null
+//   adapter.persist(db) -> saves the full _db object
+//   adapter.clear() -> wipe stored data
 //
 let _adapter = null;
 
@@ -41,7 +40,7 @@ export function setAdapter(adapter) {
   _adapter = adapter;
 }
 
-// ── Persistence helpers (delegate to adapter) ──────────
+// Persistence helpers
 
 /**
  * Persist a single entry to the adapter.
@@ -92,7 +91,7 @@ function persistReflection(date) {
 }
 
 /**
- * Persist the entire _db to the adapter (for seed loading / bulk operations).
+ * Persist the entire _db to the adapter (for bulk operations).
  */
 function persistAll() {
   if (!_adapter?.persistAll && !_adapter?.persist) return;
@@ -120,37 +119,14 @@ async function loadFromAdapter() {
   return false;
 }
 
-async function loadSeed() {
-  try {
-    const res = await fetch(config.seedUrl);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const seed = await res.json();
-    _db.entries = seed.entries || {};
-    _db.reflections = seed.reflections || {};
-    _db.meta = seed.meta || _db.meta;
-    normalizeAllEntries();
-    persistAll();
-  } catch (err) {
-    console.error("[Store] Failed to load seed data:", err);
-  }
-}
-
-// ── Init ───────────────────────────────────────────────
+// Init
 
 export async function initStore() {
-  const loaded = await loadFromAdapter();
-  if (!loaded) {
-    if (config.isProd) {
-      // Prod: start with empty store — never auto-seed with sample data
-      persistMeta();
-    } else {
-      await loadSeed();
-    }
-  }
+  await loadFromAdapter();
 }
 
 /**
- * Reset store to seed data.
+ * Reset store to an empty state.
  * Only allowed in dev mode to prevent accidental prod data loss.
  */
 export async function resetStore() {
@@ -159,18 +135,24 @@ export async function resetStore() {
     return;
   }
   if (_adapter?.clear) await _adapter.clear();
-  await loadSeed();
+  _db = {
+    entries: {},
+    reflections: {},
+    meta: {},
+  };
+  _embeddings = {};
+  _embeddingsLoaded = false;
   emit(Events.ENTRIES_CHANGED);
   emit(Events.REFLECTIONS_CHANGED);
 }
 
-// ── ID generation ──────────────────────────────────────
+// ID generation
 
 function generateId() {
   return crypto.randomUUID();
 }
 
-// ── Helpers ────────────────────────────────────────────
+// Helpers
 
 function now() {
   return new Date().toISOString();
@@ -223,7 +205,7 @@ function normalizeAllEntries() {
   }
 }
 
-// ── ENTRY CRUD ─────────────────────────────────────────
+// Entry CRUD
 
 /**
  * Create a new entry.
@@ -330,7 +312,7 @@ export function getAllEntries() {
   );
 }
 
-// ── STAR / STATUS ──────────────────────────────────────
+// Star / Status
 
 export function toggleStar(id) {
   const entry = _db.entries[id];
@@ -354,7 +336,7 @@ export function setStatus(id, status) {
   return entry;
 }
 
-// ── TAGS ───────────────────────────────────────────────
+// Tags
 
 /** Add a tag to an entry (no duplicates). */
 export function addTag(entryId, tag) {
@@ -432,7 +414,7 @@ export function mergeTags(canonical, aliases) {
   return changed;
 }
 
-// ── RELATED ENTRIES ────────────────────────────────────
+// Related entries
 
 /** Link two entries as related (bidirectional). */
 export function linkEntries(idA, idB) {
@@ -468,7 +450,7 @@ export function unlinkEntries(idA, idB) {
   return true;
 }
 
-// ── FILTERING ──────────────────────────────────────────
+// Filtering
 
 /**
  * Filter entries by criteria.
@@ -503,7 +485,7 @@ export function filterEntries(filters = {}) {
   return entries;
 }
 
-// ── SEARCH ─────────────────────────────────────────────
+// Search
 
 /**
  * Full-text search across entry fields.
@@ -546,7 +528,7 @@ export function searchEntries(query) {
     .sort((a, b) => b._score - a._score);
 }
 
-// ── REVIEW / RESURFACE ─────────────────────────────────
+// Review / Resurface
 
 /**
  * Get entries eligible for review.
@@ -569,7 +551,7 @@ export function getReviewEntries(minAgeDays = 2, limit = 5) {
   return eligible.slice(0, limit);
 }
 
-// ── REFLECTIONS ────────────────────────────────────────
+// Reflections
 
 /** Get a reflection by date string (YYYY-MM-DD). */
 export function getReflection(date) {
@@ -598,7 +580,7 @@ export function getAllReflections() {
   );
 }
 
-// ── STATS ──────────────────────────────────────────────
+// Stats
 
 export function getStats() {
   const entries = Object.values(_db.entries);
@@ -617,11 +599,11 @@ export function getStats() {
   return { total: entries.length, inbox, starred, archived, processed };
 }
 
-// ── EMBEDDINGS ─────────────────────────────────────────
+// Embeddings
 
 /**
  * Load all embeddings from the adapter into memory.
- * Idempotent — subsequent calls are no-ops.
+ * Idempotent - subsequent calls are no-ops.
  */
 export async function loadEmbeddings() {
   if (_embeddingsLoaded) return;
@@ -661,8 +643,8 @@ export function embeddingCoverage() {
 /**
  * Save an embedding for an entry. Persists via the adapter if available.
  * @param {string} entryId
- * @param {string} base64 — base64-encoded Float32Array
- * @param {string} model — the embedding model name
+ * @param {string} base64 - base64-encoded Float32Array
+ * @param {string} model - the embedding model name
  */
 export function setEmbedding(entryId, base64, model) {
   const entry = _db.entries[entryId];
@@ -682,7 +664,7 @@ export function setEmbedding(entryId, base64, model) {
 
 /**
  * Apply AI enrichment fields (summary, tags, actionItems) to an entry.
- * Does NOT touch the embedding — use setEmbedding for that.
+ * Does NOT touch the embedding - use setEmbedding for that.
  */
 export function applyEnrichment(entryId, { summary, tags, aiActionItems } = {}) {
   const entry = _db.entries[entryId];

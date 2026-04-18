@@ -56,8 +56,6 @@ js/
     date.js                 ← Date formatting
     image.js                ← Image compression & upload
     markdown.js             ← Minimal safe Markdown → HTML renderer
-data/
-  seed.json                 ← Sample data for dev mode
 ```
 
 ## Core Patterns
@@ -95,7 +93,7 @@ Adapters implement:
 - `deleteEntry(id)` → delete single entry
 - `persistReflection(date, ref)` → write single reflection
 - `persistMeta(meta)` → write meta
-- `persistAll(db)` → bulk write (seed loading)
+- `persistAll(db)` → bulk write (imports, migrations, maintenance)
 - `clear()` → wipe all data
 
 **LocalAdapter** uses IndexedDB with auto-migration from legacy localStorage.
@@ -138,7 +136,7 @@ Adapters implement:
 
 ## Environment
 
-- **Dev mode** (`ENV = "dev"` in `config.js`): Uses IndexedDB + `data/seed.json`. No credentials needed.
+- **Dev mode** (`ENV = "dev"` in `config.js`): Uses IndexedDB. If the local DB is empty, the app starts empty. No credentials needed.
 - **Prod mode** (`ENV = "prod"`): Uses Firebase Firestore. Credentials entered via UI modal on first visit.
 
 ## Documentation Sync (MANDATORY)
@@ -181,7 +179,7 @@ Adapters implement:
 
 ## Environment
 
-- **Dev mode** (`ENV = "dev"` in `config.js`): Uses IndexedDB + `data/seed.json`. No credentials needed.
+- **Dev mode** (`ENV = "dev"` in `config.js`): Uses IndexedDB. If the local DB is empty, the app starts empty. No credentials needed.
 - **Prod mode** (`ENV = "prod"`): Uses Firebase Firestore. Credentials entered via UI modal on first visit.
 
 ## Running Locally

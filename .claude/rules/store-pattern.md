@@ -68,7 +68,7 @@ Adapters must implement these methods:
   persistReflection(date, ref); // → Promise<void> (write single reflection)
   deleteReflection(date); // → Promise<void> (delete single reflection)
   persistMeta(meta); // → Promise<void> (write meta)
-  persistAll(db); // → Promise<void> (bulk write for seed/migration)
+  persistAll(db); // → Promise<void> (bulk write for imports/migrations)
   clear(); // → Promise<void> (wipe storage)
 
   // Embeddings — stored separately so vectors do not bloat the main snapshot
@@ -81,6 +81,12 @@ Adapters must implement these methods:
 ```
 
 Do not add adapter-specific logic to `store.js`. If an adapter needs special behavior, handle it inside the adapter file.
+
+Store initialization must stay adapter-agnostic:
+
+- `initStore()` first tries `adapter.load()`
+- If storage is empty, the app stays empty in both dev and prod
+- Do not auto-seed dev with sample data
 
 **LocalAdapter** uses IndexedDB with individual object stores for entries, reflections, and meta. Auto-migrates from legacy localStorage on first load.
 
