@@ -1573,9 +1573,14 @@ async function runFormAIAction(action, buttonEl) {
     setFormAIStatus("Configure AI first (AI Settings).", true);
     return;
   }
-  const origLabel = buttonEl.innerHTML;
-  buttonEl.disabled = true;
-  buttonEl.innerHTML = `${icon("sparkles", 14)} ...`;
+
+  const spinTarget = getAIActionSpinTarget(buttonEl);
+  const origSpinHtml = spinTarget ? spinTarget.innerHTML : null;
+  const allControls = document.querySelectorAll(
+    ".ai-toolbar [data-ai-action], .ai-toolbar [data-ai-menu-toggle]"
+  );
+  allControls.forEach((el) => (el.disabled = true));
+  if (spinTarget) applyAIChipLoading(spinTarget);
 
   try {
     const data = collectFormData();
@@ -1646,10 +1651,31 @@ async function runFormAIAction(action, buttonEl) {
   } catch (err) {
     setFormAIStatus(err.message, true);
   } finally {
-    buttonEl.disabled = false;
-    buttonEl.innerHTML = origLabel;
+    allControls.forEach((el) => (el.disabled = false));
+    if (spinTarget && origSpinHtml !== null) {
+      spinTarget.classList.remove("ai-chip--loading");
+      spinTarget.innerHTML = origSpinHtml;
+    }
     runDuplicateCheck().catch(() => {});
   }
+}
+
+/**
+ * Resolve the chip that should show the loading spinner for a given AI action click.
+ * For toolbar chips this is the button itself; for dropdown menu items (e.g. Translate →
+ * English), the menu is hidden on click so we spin the parent menu toggle instead.
+ */
+function getAIActionSpinTarget(buttonEl) {
+  if (buttonEl.classList.contains("ai-chip")) return buttonEl;
+  const wrapper = buttonEl.closest(".ai-toolbar-menu-wrapper");
+  return wrapper ? wrapper.querySelector("[data-ai-menu-toggle]") : null;
+}
+
+function applyAIChipLoading(chipEl) {
+  const svg = chipEl.querySelector("svg:not(.ai-chip-caret)");
+  const size = svg ? parseInt(svg.getAttribute("width"), 10) || 14 : 14;
+  if (svg) svg.outerHTML = icon("loader", size);
+  chipEl.classList.add("ai-chip--loading");
 }
 
 function buildFormEntry(data) {

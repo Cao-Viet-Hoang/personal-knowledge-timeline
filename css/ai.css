@@ -176,6 +176,24 @@
   background: hsl(var(--muted));
 }
 
+.ai-chip--loading,
+.ai-chip--loading:disabled {
+  opacity: 1;
+  background: hsl(var(--primary) / 0.08);
+  border-color: hsl(var(--primary) / 0.35);
+  color: hsl(var(--foreground));
+  cursor: progress;
+}
+
+.ai-chip--loading svg:not(.ai-chip-caret) {
+  color: hsl(var(--primary));
+  animation: ai-chip-spin 0.8s linear infinite;
+}
+
+@keyframes ai-chip-spin {
+  to { transform: rotate(360deg); }
+}
+
 .ai-chip--menu {
   padding-right: var(--space-2);
 }
