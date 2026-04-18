@@ -17,8 +17,6 @@ import {
   deleteEntry,
   toggleStar,
   setStatus,
-  linkEntries,
-  unlinkEntries,
   filterEntries,
 } from "./store/store.js";
 

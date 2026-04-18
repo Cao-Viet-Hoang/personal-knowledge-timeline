@@ -133,6 +133,37 @@ When adding new data operations:
 - `mergeTags(canonical, aliases)` rewrites every entry that contains any alias: alias tags are removed, canonical is added (deduped), aliases equal to the canonical are ignored. Returns the count of modified entries. Emits `ENTRY_UPDATED` per modified entry plus a single trailing `ENTRIES_CHANGED`.
 - Use this whenever you replace a tag across the whole dataset (e.g. AI Settings → Suggest tag merges). Do not hand-roll a loop of `removeTag`/`addTag` calls — that produces one `ENTRIES_CHANGED` per swap and forces the timeline to re-render repeatedly.
 
+### 7b. Entry Links (Directional, Mirrored)
+
+Entries have **two** link fields, kept in sync by the store:
+
+| Field             | Meaning                                | Written by                                              |
+|-------------------|----------------------------------------|---------------------------------------------------------|
+| `relatedEntryIds` | Outgoing — entries this one points TO  | The owning entry's form ("Links to" UI)                 |
+| `backlinks`       | Incoming — entries that point AT this  | Auto-mirrored by `createEntry`/`updateEntry`/`deleteEntry` |
+
+**Why both?** `backlinks` is a denormalized index so `getBacklinks(id)` is O(1) — important once entries are loaded progressively, since a scan would have to fetch the whole dataset just to compute "Linked from".
+
+**Invariants the store enforces (do not bypass):**
+
+- A user (form, code) only writes `relatedEntryIds`. The matching `backlinks` updates happen automatically inside `createEntry` / `updateEntry` / `deleteEntry`.
+- Self-refs (`entry.relatedEntryIds.includes(entry.id)`) and dangling refs (target not in `_db.entries`) are filtered out at write time.
+- `deleteEntry` uses the stored `backlinks` to strip itself from every source entry's `relatedEntryIds` and the stored `relatedEntryIds` to strip itself from every target's `backlinks`. No full-table scan.
+- `loadFromAdapter` runs `rebuildBacklinks()` after `normalizeAllEntries()`. This:
+  1. Backfills `backlinks` for entries created before the field existed.
+  2. Self-heals any drift if a write path ever forgot to mirror.
+  3. Only persists entries whose `backlinks` set actually changed, so steady-state boots write nothing.
+
+**Reading:**
+
+- `getBacklinks(id)` returns the entries listed in `entry.backlinks`, sorted newest first. Do not re-scan `_db.entries` for backlinks anywhere else — always go through `getBacklinks`.
+
+**Adding a new code path that writes links:**
+
+If you ever need to mutate `relatedEntryIds` outside the existing CRUD functions, you **must** mirror the change onto the affected `backlinks` arrays in the same operation, persist all touched entries, and emit `ENTRY_UPDATED` for each. Easier: route through `updateEntry({ relatedEntryIds: ... })` which already handles all of this.
+
+Do not reintroduce bidirectional helpers like `linkEntries` / `unlinkEntries` — they conflate mirroring (a storage concern) with bidirectional intent (a user concern), and would silently make links symmetric.
+
 ### 8. ID Generation
 
 - Entries use `crypto.randomUUID()` via the internal `generateId()` function

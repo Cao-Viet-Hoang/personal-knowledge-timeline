@@ -201,13 +201,13 @@ export function renderEntryForm(entry = null) {
       </div>
 
       <div class="form-group" id="form-related-group">
-        <label class="label">Related Entries</label>
+        <label class="label">Links to</label>
         <div class="related-search-wrapper" id="related-search-wrapper">
           <input
             type="text"
             class="input"
             id="related-search-input"
-            placeholder="Search entries to link..."
+            placeholder="Search entries to link to..."
             autocomplete="off"
           />
           <div class="related-search-dropdown" id="related-search-dropdown" hidden></div>
@@ -215,7 +215,7 @@ export function renderEntryForm(entry = null) {
         <div class="related-entries-list" id="related-entries-list">
           ${relatedHtml}
         </div>
-        <span class="form-hint">Search by title to link related entries</span>
+        <span class="form-hint">Other entries this one points to. They will see this entry under "Linked from".</span>
       </div>
 
       <div class="form-group" id="form-summary-group" ${existingSummary ? "" : "hidden"}>

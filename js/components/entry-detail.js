@@ -5,7 +5,7 @@
 
 import { icon } from "../utils/icons.js";
 import { formatDate, formatTime, formatRelative } from "../utils/date.js";
-import { getEntry } from "../store/store.js";
+import { getEntry, getBacklinks } from "../store/store.js";
 
 const TYPE_LABELS = {
   link: "Link",
@@ -86,34 +86,35 @@ export function renderEntryDetail(entry) {
     `
     : "";
 
-  // Related entries
-  let relatedHtml = "";
-  if (entry.relatedEntryIds && entry.relatedEntryIds.length > 0) {
-    const relatedEntries = entry.relatedEntryIds
-      .map((id) => getEntry(id))
-      .filter(Boolean);
-
-    if (relatedEntries.length > 0) {
-      const relatedItemsHtml = relatedEntries
-        .map(
-          (re) => `
-          <div class="related-entry-item" data-related-entry-id="${re.id}">
-            <span class="related-entry-dot" style="background: hsl(var(--color-${re.type}))"></span>
-            <span class="related-entry-title">${escapeHtml(re.title)}</span>
-            <span class="related-entry-date">${formatRelative(re.createdAt)}</span>
-          </div>
-        `
-        )
-        .join("");
-
-      relatedHtml = `
-        <div class="detail-section">
-          <div class="detail-section-title">Related Entries</div>
-          <div class="related-entries">${relatedItemsHtml}</div>
+  // Outgoing links — entries this entry points to.
+  const linksToEntries = (entry.relatedEntryIds || [])
+    .map((id) => getEntry(id))
+    .filter(Boolean);
+  const linksToHtml = linksToEntries.length
+    ? `
+      <div class="detail-section">
+        <div class="detail-section-title">
+          ${icon("arrowUpRight", 14)} Links to
+          <span class="detail-section-count">${linksToEntries.length}</span>
         </div>
-      `;
-    }
-  }
+        <div class="related-entries">${renderRelatedItems(linksToEntries)}</div>
+      </div>
+    `
+    : "";
+
+  // Incoming links — other entries that point at this one (backlinks).
+  const linkedFromEntries = getBacklinks(entry.id);
+  const linkedFromHtml = linkedFromEntries.length
+    ? `
+      <div class="detail-section">
+        <div class="detail-section-title">
+          ${icon("arrowDownLeft", 14)} Linked from
+          <span class="detail-section-count">${linkedFromEntries.length}</span>
+        </div>
+        <div class="related-entries">${renderRelatedItems(linkedFromEntries)}</div>
+      </div>
+    `
+    : "";
 
   // Status button label
   const statusActions = {
@@ -168,7 +169,8 @@ export function renderEntryDetail(entry) {
     ${actionsHtml}
     ${imagesHtml}
     ${tagsHtml}
-    ${relatedHtml}
+    ${linksToHtml}
+    ${linkedFromHtml}
 
     <div class="detail-section" id="ai-related-section">
       <div class="detail-section-title">
@@ -201,6 +203,20 @@ export function renderEntryDetail(entry) {
       </button>
     </div>
   `;
+}
+
+function renderRelatedItems(entries) {
+  return entries
+    .map(
+      (re) => `
+        <div class="related-entry-item" data-related-entry-id="${re.id}">
+          <span class="related-entry-dot" style="background: hsl(var(--color-${re.type}))"></span>
+          <span class="related-entry-title">${escapeHtml(re.title)}</span>
+          <span class="related-entry-date">${formatRelative(re.createdAt)}</span>
+        </div>
+      `
+    )
+    .join("");
 }
 
 function escapeHtml(str) {

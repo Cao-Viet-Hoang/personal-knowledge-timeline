@@ -111,12 +111,46 @@ async function loadFromAdapter() {
       _db.reflections = data.reflections || {};
       _db.meta = data.meta || _db.meta;
       normalizeAllEntries();
+      rebuildBacklinks();
       return true;
     }
   } catch (err) {
     console.error("[Store] Failed to load from adapter:", err);
   }
   return false;
+}
+
+/**
+ * Recompute every entry's `backlinks` from the union of all
+ * `relatedEntryIds` arrays. Run once after load to:
+ *   1. Backfill `backlinks` for entries that pre-date the field.
+ *   2. Self-heal any drift if an external write skipped the mirror.
+ * Only persists entries whose backlinks set actually changed, so subsequent
+ * boots with consistent data are a no-op write-wise.
+ */
+function rebuildBacklinks() {
+  const before = new Map();
+  for (const [id, entry] of Object.entries(_db.entries)) {
+    const sorted = (entry.backlinks || []).slice().sort();
+    before.set(id, sorted.join("|"));
+    entry.backlinks = [];
+  }
+  for (const entry of Object.values(_db.entries)) {
+    const seen = new Set();
+    for (const targetId of entry.relatedEntryIds || []) {
+      if (targetId === entry.id || seen.has(targetId)) continue;
+      seen.add(targetId);
+      const target = _db.entries[targetId];
+      if (!target) continue;
+      target.backlinks.push(entry.id);
+    }
+  }
+  for (const [id, entry] of Object.entries(_db.entries)) {
+    const after = entry.backlinks.slice().sort().join("|");
+    if (before.get(id) !== after) {
+      persistEntry(id);
+    }
+  }
 }
 
 // Init
@@ -187,6 +221,7 @@ function normalizeEntry(entry) {
     starred: entry.starred ?? false,
     status: entry.status || "inbox",
     relatedEntryIds: entry.relatedEntryIds || [],
+    backlinks: entry.backlinks || [],
     // AI-derived fields
     summary: entry.summary || "",
     aiActionItems: entry.aiActionItems || [],
@@ -216,6 +251,16 @@ export function createEntry(data) {
   const id = data.id || generateId();
   const timestamp = now();
 
+  // Drop self-refs, dangling targets, and duplicates so the link set is
+  // always valid and minimal.
+  const validRelated = [
+    ...new Set(
+      (data.relatedEntryIds || []).filter(
+        (rid) => rid !== id && _db.entries[rid]
+      )
+    ),
+  ];
+
   const entry = {
     id,
     type: data.type || "note",
@@ -231,7 +276,8 @@ export function createEntry(data) {
     updatedAt: timestamp,
     starred: data.starred ?? false,
     status: data.status || "inbox",
-    relatedEntryIds: data.relatedEntryIds || [],
+    relatedEntryIds: validRelated,
+    backlinks: [],
     summary: data.summary || "",
     aiActionItems: data.aiActionItems || [],
     embeddingModel: "",
@@ -239,7 +285,21 @@ export function createEntry(data) {
   };
 
   _db.entries[id] = entry;
+
+  // Mirror outgoing links onto each target's backlinks.
+  const affectedIds = [];
+  for (const targetId of validRelated) {
+    const target = _db.entries[targetId];
+    target.backlinks = target.backlinks || [];
+    if (!target.backlinks.includes(id)) {
+      target.backlinks.push(id);
+      target.updatedAt = timestamp;
+      affectedIds.push(targetId);
+    }
+  }
+
   persistEntry(id);
+  for (const aid of affectedIds) persistEntry(aid);
   emit(Events.ENTRY_CREATED, entry);
   emit(Events.ENTRIES_CHANGED);
   return entry;
@@ -254,14 +314,55 @@ export function createEntry(data) {
 export function updateEntry(id, changes) {
   const entry = _db.entries[id];
   if (!entry) return null;
+  const timestamp = now();
 
   // If sourceUrl changed, recompute domain
   if (changes.sourceUrl !== undefined) {
     changes.sourceDomain = domainFromUrl(changes.sourceUrl);
   }
 
-  Object.assign(entry, changes, { updatedAt: now() });
+  // If outgoing links changed, mirror the diff onto each target's backlinks.
+  const affectedIds = [];
+  if (changes.relatedEntryIds !== undefined) {
+    const oldSet = new Set(entry.relatedEntryIds || []);
+    const newSet = new Set(
+      (changes.relatedEntryIds || []).filter(
+        (rid) => rid !== id && _db.entries[rid]
+      )
+    );
+
+    // Targets we no longer link to → drop us from their backlinks.
+    for (const targetId of oldSet) {
+      if (newSet.has(targetId)) continue;
+      const target = _db.entries[targetId];
+      if (!target) continue;
+      const next = (target.backlinks || []).filter((bid) => bid !== id);
+      if (next.length !== (target.backlinks || []).length) {
+        target.backlinks = next;
+        target.updatedAt = timestamp;
+        affectedIds.push(targetId);
+      }
+    }
+
+    // New targets → add us to their backlinks (deduped).
+    for (const targetId of newSet) {
+      if (oldSet.has(targetId)) continue;
+      const target = _db.entries[targetId];
+      target.backlinks = target.backlinks || [];
+      if (!target.backlinks.includes(id)) {
+        target.backlinks.push(id);
+        target.updatedAt = timestamp;
+        affectedIds.push(targetId);
+      }
+    }
+
+    // Persist the normalized list (drops self-refs and dangling targets).
+    changes.relatedEntryIds = [...newSet];
+  }
+
+  Object.assign(entry, changes, { updatedAt: timestamp });
   persistEntry(id);
+  for (const aid of affectedIds) persistEntry(aid);
   emit(Events.ENTRY_UPDATED, entry);
   emit(Events.ENTRIES_CHANGED);
   return entry;
@@ -269,24 +370,44 @@ export function updateEntry(id, changes) {
 
 /**
  * Delete an entry by id.
- * Also removes this id from other entries' relatedEntryIds and drops
- * any cached embedding.
+ * Uses stored relatedEntryIds + backlinks to touch only the entries actually
+ * connected to this one, instead of scanning the whole dataset.
+ * Also drops any cached embedding.
  */
 export function deleteEntry(id) {
-  if (!_db.entries[id]) return false;
+  const entry = _db.entries[id];
+  if (!entry) return false;
+
+  const outgoing = (entry.relatedEntryIds || []).slice();
+  const incoming = (entry.backlinks || []).slice();
+  const timestamp = now();
 
   delete _db.entries[id];
   delete _embeddings[id];
 
-  // Clean up related references
-  const affectedIds = [];
-  for (const entry of Object.values(_db.entries)) {
-    const related = entry.relatedEntryIds || [];
-    const idx = related.indexOf(id);
-    if (idx !== -1) {
-      related.splice(idx, 1);
-      entry.relatedEntryIds = related;
-      affectedIds.push(entry.id);
+  const affectedIds = new Set();
+
+  // Targets we used to point to → strip our id from their backlinks.
+  for (const targetId of outgoing) {
+    const target = _db.entries[targetId];
+    if (!target) continue;
+    const next = (target.backlinks || []).filter((bid) => bid !== id);
+    if (next.length !== (target.backlinks || []).length) {
+      target.backlinks = next;
+      target.updatedAt = timestamp;
+      affectedIds.add(targetId);
+    }
+  }
+
+  // Sources that pointed at us → strip our id from their relatedEntryIds.
+  for (const sourceId of incoming) {
+    const source = _db.entries[sourceId];
+    if (!source) continue;
+    const next = (source.relatedEntryIds || []).filter((rid) => rid !== id);
+    if (next.length !== (source.relatedEntryIds || []).length) {
+      source.relatedEntryIds = next;
+      source.updatedAt = timestamp;
+      affectedIds.add(sourceId);
     }
   }
 
@@ -415,39 +536,30 @@ export function mergeTags(canonical, aliases) {
 }
 
 // Related entries
+//
+// Links are directional: an entry's `relatedEntryIds` lists the entries it
+// points TO ("Links to"). The inverse — entries that point AT this one
+// ("Linked from") — is computed on demand via `getBacklinks(id)`.
 
-/** Link two entries as related (bidirectional). */
-export function linkEntries(idA, idB) {
-  const a = _db.entries[idA];
-  const b = _db.entries[idB];
-  if (!a || !b || idA === idB) return false;
-
-  if (!a.relatedEntryIds.includes(idB)) a.relatedEntryIds.push(idB);
-  if (!b.relatedEntryIds.includes(idA)) b.relatedEntryIds.push(idA);
-
-  a.updatedAt = now();
-  b.updatedAt = now();
-  persistEntry(idA);
-  persistEntry(idB);
-  emit(Events.ENTRIES_CHANGED);
-  return true;
-}
-
-/** Unlink two related entries (bidirectional). */
-export function unlinkEntries(idA, idB) {
-  const a = _db.entries[idA];
-  const b = _db.entries[idB];
-  if (!a || !b) return false;
-
-  a.relatedEntryIds = a.relatedEntryIds.filter((id) => id !== idB);
-  b.relatedEntryIds = b.relatedEntryIds.filter((id) => id !== idA);
-
-  a.updatedAt = now();
-  b.updatedAt = now();
-  persistEntry(idA);
-  persistEntry(idB);
-  emit(Events.ENTRIES_CHANGED);
-  return true;
+/**
+ * Get entries that link TO the given id — the "Linked from" set.
+ * Reads the stored `backlinks` field (kept in sync by create/update/delete
+ * and self-healed on load via `rebuildBacklinks`).
+ * @param {string} id
+ * @returns {EntryDoc[]} sorted newest first
+ */
+export function getBacklinks(id) {
+  if (!id) return [];
+  const entry = _db.entries[id];
+  if (!entry) return [];
+  const result = [];
+  for (const sourceId of entry.backlinks || []) {
+    const source = _db.entries[sourceId];
+    if (source) result.push(source);
+  }
+  return result.sort(
+    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+  );
 }
 
 // Filtering
