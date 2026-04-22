@@ -61,7 +61,7 @@ export async function enrichEntry(entry, { language = "en" } = {}) {
   const ln = langName(language);
   const prompt = `Analyze this knowledge entry and respond with JSON:\n\n${ctx}\n\n` +
     `Return a JSON object with these keys:\n` +
-    `- "tags": array of 3-6 lowercase, single-word (or hyphenated) topical tags in ${ln}\n` +
+    `- "tags": array of 3-6 topical tags in ${ln}; each tag must be lowercase, no diacritics/accents (e.g. "doi-song" not "đời sống"), use hyphens instead of spaces\n` +
     `- "summary": 1-2 sentence summary in ${ln}\n` +
     `- "suggestedType": one of "link" | "note" | "thought" | "quote"\n` +
     `- "suggestedTitle": a concise title in ${ln} (only if the current title is empty or a raw URL)\n`;
@@ -84,7 +84,7 @@ export async function generateTags(entry, { language = "en" } = {}) {
   const result = await chatJson(
     [
       sys("Return ONLY valid JSON.", language),
-      user(`Generate 3-6 short, lowercase topical tags in ${ln} for this entry. Return JSON { "tags": [...] }.\n\n${ctx}`),
+      user(`Generate 3-6 topical tags in ${ln} for this entry. Tags must be lowercase, no diacritics/accents (e.g. "doi-song" not "đời sống"), use hyphens instead of spaces. Return JSON { "tags": [...] }.\n\n${ctx}`),
     ],
     { temperature: 0.2 }
   );

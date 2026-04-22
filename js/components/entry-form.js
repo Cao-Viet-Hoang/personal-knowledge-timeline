@@ -19,7 +19,7 @@ export function renderEntryForm(entry = null) {
   const status = entry?.status || "inbox";
   const images = entry?.images || [];
   const relatedEntryIds = entry?.relatedEntryIds || [];
-  const aiLanguage = entry?.aiLanguage === "vi" ? "vi" : "en";
+  const aiLanguage = entry ? (entry.aiLanguage === "vi" ? "vi" : "en") : "vi";
   const createdDate = entry?.createdAt
     ? entry.createdAt.slice(0, 10)
     : todayDateString();
