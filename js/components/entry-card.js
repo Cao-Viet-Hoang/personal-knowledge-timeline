@@ -24,6 +24,10 @@ export function renderEntryCard(entry) {
   const starClass = entry.starred ? "ec-star starred" : "ec-star";
 
   // ── Header meta chips ──
+  const ticketChip = entry.ticketNumber
+    ? `<span class="ec-ticket ec-ticket--${entry.type}">#${entry.ticketNumber}</span>`
+    : "";
+
   const domainChip = entry.sourceDomain
     ? `<span class="ec-chip">${icon("globe")} ${esc(entry.sourceDomain)}</span>`
     : "";
@@ -71,6 +75,7 @@ export function renderEntryCard(entry) {
         <!-- Header -->
         <div class="ec-header">
           <div class="ec-meta">
+            ${ticketChip}
             <span class="badge badge-${entry.type}">${typeLabel}</span>
             <span class="status-badge status-${entry.status}">${entry.status}</span>
             ${domainChip}

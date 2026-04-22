@@ -35,6 +35,7 @@ export function renderEntryForm(entry = null) {
       (re) => `
     <div class="related-entry-chip" data-related-id="${esc(re.id)}">
       <span class="type-dot type-dot--${re.type}"></span>
+      ${re.ticketNumber ? `<span class="related-entry-chip-ticket">#${re.ticketNumber}</span>` : ""}
       <span class="related-entry-chip-title">${esc(re.title)}</span>
       <button type="button" class="related-entry-chip-remove" data-remove-related="${esc(re.id)}">${icon("close")}</button>
     </div>
@@ -222,7 +223,7 @@ export function renderEntryForm(entry = null) {
             type="text"
             class="input"
             id="related-search-input"
-            placeholder="Search entries to link to..."
+            placeholder="Search by title or #number..."
             autocomplete="off"
           />
           <div class="related-search-dropdown" id="related-search-dropdown" hidden></div>

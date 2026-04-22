@@ -161,8 +161,32 @@
 /* ---- Entry detail modal ---- */
 
 .detail-type-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   margin-bottom: var(--space-3);
 }
+
+/* Azure DevOps-style ticket chip for detail view */
+.detail-ticket {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted));
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2) 2px var(--space-1);
+  line-height: 1.4;
+  white-space: nowrap;
+  border-left: 3px solid hsl(var(--muted-foreground));
+}
+
+.detail-ticket--link    { border-left-color: hsl(var(--color-link)); }
+.detail-ticket--note    { border-left-color: hsl(var(--color-note)); }
+.detail-ticket--thought { border-left-color: hsl(var(--color-thought)); }
+.detail-ticket--quote   { border-left-color: hsl(var(--color-quote)); }
 
 .detail-title {
   font-size: var(--text-xl);
@@ -330,6 +354,15 @@
   height: 6px;
   border-radius: var(--radius-full);
   flex-shrink: 0;
+}
+
+.related-entry-ticket {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+  color: hsl(var(--muted-foreground));
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .related-entry-title {

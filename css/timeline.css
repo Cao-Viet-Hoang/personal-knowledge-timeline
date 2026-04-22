@@ -131,6 +131,30 @@
   min-width: 0;
 }
 
+/* ── Ticket number chip (Azure DevOps work-item style) ── */
+
+.ec-ticket {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: var(--font-semibold);
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted));
+  border-radius: var(--radius-sm);
+  padding: 1px var(--space-2) 1px var(--space-1);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  border-left: 3px solid hsl(var(--muted-foreground));
+}
+
+.ec-ticket--link   { border-left-color: hsl(var(--color-link)); }
+.ec-ticket--note   { border-left-color: hsl(var(--color-note)); }
+.ec-ticket--thought { border-left-color: hsl(var(--color-thought)); }
+.ec-ticket--quote  { border-left-color: hsl(var(--color-quote)); }
+
 .ec-chip {
   display: inline-flex;
   align-items: center;

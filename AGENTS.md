@@ -46,7 +46,7 @@ js/
     ai-index.js             ← Batch embedding jobs + per-entry index
     embeddings.js           ← Vector math, base64 Float32 codec
   store/                    ← Data layer
-    store.js                ← CRUD, filter, search, reflections, embeddings
+    store.js                ← CRUD, filter, search, reflections, embeddings, ticket numbers
     event-bus.js            ← Pub/sub for state changes
     local-adapter.js        ← IndexedDB persistence (dev)
     firebase-adapter.js     ← Firestore sub-collection persistence (prod)

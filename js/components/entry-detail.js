@@ -145,6 +145,7 @@ export function renderEntryDetail(entry) {
 
   return `
     <div class="detail-type-badge">
+      ${entry.ticketNumber ? `<span class="detail-ticket detail-ticket--${entry.type}">#${entry.ticketNumber}</span>` : ""}
       <span class="badge badge-${entry.type}">${typeLabel}</span>
       <span class="status-badge status-${entry.status}" style="margin-left: var(--space-2)">${entry.status}</span>
     </div>
@@ -211,6 +212,7 @@ function renderRelatedItems(entries) {
       (re) => `
         <div class="related-entry-item" data-related-entry-id="${re.id}">
           <span class="related-entry-dot" style="background: hsl(var(--color-${re.type}))"></span>
+          ${re.ticketNumber ? `<span class="related-entry-ticket">#${re.ticketNumber}</span>` : ""}
           <span class="related-entry-title">${escapeHtml(re.title)}</span>
           <span class="related-entry-date">${formatRelative(re.createdAt)}</span>
         </div>

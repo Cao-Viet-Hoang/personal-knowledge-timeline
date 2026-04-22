@@ -805,7 +805,9 @@ function initRelatedEntriesSearch() {
     clearTimeout(debounceTimer);
     const query = input.value.trim().toLowerCase();
 
-    if (query.length < 2) {
+    // Allow single char for "#N" ticket searches, otherwise require 2 chars
+    const isTicketQuery = query.startsWith("#") || /^\d+$/.test(query);
+    if (!isTicketQuery && query.length < 2) {
       dropdown.hidden = true;
       dropdown.innerHTML = "";
       return;
@@ -818,11 +820,13 @@ function initRelatedEntriesSearch() {
         linkedIds.add(el.dataset.relatedId);
       });
 
-      // Search entries by title
+      // Search entries by title or ticket number
+      const numQuery = query.startsWith("#") ? parseInt(query.slice(1), 10) : parseInt(query, 10);
       const results = getAllEntries()
         .filter((e) => {
           if (e.id === currentId) return false;
           if (linkedIds.has(e.id)) return false;
+          if (!isNaN(numQuery) && e.ticketNumber === numQuery) return true;
           return e.title.toLowerCase().includes(query);
         })
         .slice(0, 6);
@@ -835,6 +839,7 @@ function initRelatedEntriesSearch() {
             (e) => `
           <div class="related-search-item" data-select-related="${e.id}">
             <span class="type-dot type-dot--${e.type}"></span>
+            ${e.ticketNumber ? `<span class="related-search-item-ticket">#${e.ticketNumber}</span>` : ""}
             <span class="related-search-item-title">${escapeForHtml(e.title)}</span>
             <span class="related-search-item-type">${e.type}</span>
           </div>
@@ -861,6 +866,7 @@ function initRelatedEntriesSearch() {
     chip.dataset.relatedId = entry.id;
     chip.innerHTML = `
       <span class="type-dot type-dot--${entry.type}"></span>
+      ${entry.ticketNumber ? `<span class="related-entry-chip-ticket">#${entry.ticketNumber}</span>` : ""}
       <span class="related-entry-chip-title">${escapeForHtml(entry.title)}</span>
       <button type="button" class="related-entry-chip-remove" data-remove-related="${entry.id}">${icon("close")}</button>
     `;

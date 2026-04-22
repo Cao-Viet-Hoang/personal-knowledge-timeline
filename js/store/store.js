@@ -112,6 +112,7 @@ async function loadFromAdapter() {
       _db.meta = data.meta || _db.meta;
       normalizeAllEntries();
       rebuildBacklinks();
+      backfillTicketNumbers();
       return true;
     }
   } catch (err) {
@@ -151,6 +152,31 @@ function rebuildBacklinks() {
       persistEntry(id);
     }
   }
+}
+
+/**
+ * Backfill ticketNumber for entries that don't have one (one-time migration).
+ * Assigns sequential numbers sorted by createdAt ascending (oldest = #1).
+ * Subsequent boots skip this when all entries already have ticket numbers.
+ */
+function backfillTicketNumbers() {
+  const entries = Object.values(_db.entries);
+  const needBackfill = entries.filter((e) => !e.ticketNumber);
+  if (needBackfill.length === 0) return;
+
+  // Sort ALL entries by createdAt ascending to assign consistent numbers
+  const sorted = entries.slice().sort(
+    (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+  );
+
+  let nextNum = 1;
+  for (const entry of sorted) {
+    entry.ticketNumber = nextNum++;
+    persistEntry(entry.id);
+  }
+
+  _db.meta.nextTicketNumber = nextNum;
+  persistMeta();
 }
 
 // Init
@@ -222,6 +248,8 @@ function normalizeEntry(entry) {
     status: entry.status || "inbox",
     relatedEntryIds: entry.relatedEntryIds || [],
     backlinks: entry.backlinks || [],
+    // Ticket number (sequential, assigned on create)
+    ticketNumber: entry.ticketNumber || null,
     // AI-derived fields
     summary: entry.summary || "",
     aiActionItems: entry.aiActionItems || [],
@@ -229,6 +257,20 @@ function normalizeEntry(entry) {
     embeddingModel: entry.embeddingModel || "",
     embeddingUpdatedAt: entry.embeddingUpdatedAt || null,
   };
+}
+
+/**
+ * Get the next ticket number and increment the counter.
+ * @returns {number}
+ */
+function getNextTicketNumber() {
+  if (!_db.meta.nextTicketNumber) {
+    _db.meta.nextTicketNumber = 1;
+  }
+  const num = _db.meta.nextTicketNumber;
+  _db.meta.nextTicketNumber = num + 1;
+  persistMeta();
+  return num;
 }
 
 /**
@@ -279,6 +321,7 @@ export function createEntry(data) {
     status: data.status || "inbox",
     relatedEntryIds: validRelated,
     backlinks: [],
+    ticketNumber: data.ticketNumber || getNextTicketNumber(),
     summary: data.summary || "",
     aiActionItems: data.aiActionItems || [],
     aiLanguage: data.aiLanguage === "vi" ? "vi" : "en",
@@ -433,6 +476,11 @@ export function getAllEntries() {
   return Object.values(_db.entries).sort(
     (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
   );
+}
+
+/** Find an entry by its ticket number. */
+export function getEntryByTicketNumber(num) {
+  return Object.values(_db.entries).find((e) => e.ticketNumber === num) || null;
 }
 
 // Star / Status

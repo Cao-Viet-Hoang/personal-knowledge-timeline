@@ -85,6 +85,7 @@ Do not add adapter-specific logic to `store.js`. If an adapter needs special beh
 Store initialization must stay adapter-agnostic:
 
 - `initStore()` first tries `adapter.load()`
+- After loading: `normalizeAllEntries()` → `rebuildBacklinks()` → `backfillTicketNumbers()`
 - If storage is empty, the app stays empty in both dev and prod
 - Do not auto-seed dev with sample data
 
@@ -168,7 +169,18 @@ Do not reintroduce bidirectional helpers like `linkEntries` / `unlinkEntries` �
 
 - Entries use `crypto.randomUUID()` via the internal `generateId()` function
 - Reflections are keyed by date string (`YYYY-MM-DD`) — no generated ID needed
-- The `meta` object is an empty container reserved for future use — no fields are required
+- The `meta` object stores app-wide counters — currently `nextTicketNumber` (see §8a)
+
+### 8a. Ticket Numbers
+
+Every entry has a human-readable `ticketNumber` (integer) displayed as `#1`, `#2`, etc. in the UI (Azure DevOps work-item style).
+
+- **Counter** lives in `_db.meta.nextTicketNumber`. `getNextTicketNumber()` reads it, increments, and persists meta.
+- **`createEntry()`** automatically assigns the next ticket number. If `data.ticketNumber` is already provided (e.g., import), it is used as-is.
+- **Backfill migration** (`backfillTicketNumbers()`): runs once on boot after `normalizeAllEntries()` + `rebuildBacklinks()`. If any entry has `ticketNumber === null`, sorts ALL entries by `createdAt` ascending and assigns `#1, #2, …`. Subsequent boots skip it (idempotent).
+- **Lookup**: `getEntryByTicketNumber(num)` scans `_db.entries` and returns the matching entry or `null`.
+- **UI**: displayed on entry cards, detail view header, link-to dropdown items, link-to chips, and related-entry items in detail view.
+- **Link-to search**: the related-entries search in the entry form matches both title (substring) and ticket number (exact `#N` or `N`).
 
 ### 9. Embedding Cache
 
